@@ -58,6 +58,10 @@ class SimpleJobQueue(object):
     __metaclass__ = Singleton
 
     def __init__(self, limit):
+        """
+
+        :param limit: int
+        """
         self.limit = limit
         self.processing = 0
         self.processlist = list()
@@ -95,11 +99,17 @@ class SimpleJobQueue(object):
 class RemoteConverter(object):
     """Remote Converter expects """
 
-    def __init__(self, params, logger=None, settings=None):
+    def __init__(self, job, logger=None, settings=None):
+        """
+
+        :param job: BaseJob
+        :param logger: twisted.logger
+        :param settings: ReadSettings
+        """
         self.log = logger if logger else Logger(observer=textFileLogObserver(sys.stdout), namespace='RemoteConverter')
         self.log.namespace = 'RemoteConverter'
-        assert isinstance(params, BaseJob)
-        self.params = params
+        assert isinstance(job, BaseJob)
+        self.job = job
         self.settings = self._overridesettings(settings)
         self.converter = MkvtoMp4(self.settings)
 
@@ -122,7 +132,7 @@ class RemoteConverter(object):
 
     def convert(self):
         q = SimpleJobQueue(2)
-        d = q.addjob(self.converter.process, self.params.inputfile, original=self.params.original)
+        d = q.addjob(self.converter.process, self.job.inputfile, original=self.job.original)
 
         if self.settings.tagfile:
             d.addCallback(self.tag)
@@ -134,31 +144,12 @@ class RemoteConverter(object):
         d.addCallbacks(self.logsuccess, self.logerrors)
 
     def isjobvalid(self):
-        return self.converter.validSource(self.params.inputfile)
+        return self.converter.validSource(self.job.inputfile)
 
     def tag(self, output):
         self.log.debug('Tagging file {output.output}', output=output)
-        if isinstance(self.params, MovieJob):
-            try:
-                from tmdb_mp4 import tmdb_mp4
-                tagmp4 = tmdb_mp4(self.params.imdb_id, original=self.params.original,
-                                  language=self.settings.taglanguage)
-                tagmp4.setHD(output['x'], output['y'])
-                tagmp4.writeTags(output['output'], self.settings.artwork)
-            except:
-                self.log.error('Tagging of {file} failed', output=output)
-
-        if isinstance(self.params, TVJob):
-            self.log.debug('Tagging TV Show')
-            try:
-                from tvdb_mp4 import Tvdb_mp4
-                tagmp4 = Tvdb_mp4(self.params.tvdb_id, self.params.season, self.params.episode, self.params.original,
-                                  language=self.settings.taglanguage)
-                tagmp4.setHD(output['x'], output['y'])
-                tagmp4.writeTags(output['output'], self.settings.artwork, self.settings.thumbnail)
-            except:
-                self.log.error('Tagging of {file} failed', output=output)
-        self.log.debug('File {output.output} tagged successfully', output=output)
+        self.job.tag(output, language=self.settings.taglanguage, artwork=self.settings.artwork,
+                     thumbnail=self.settings.thumbnail)
         return output
 
     def qtfs(self, output):
@@ -175,18 +166,25 @@ class RemoteConverter(object):
         self.log.error(reason.getErrorMessage())
 
     def logsuccess(self, _):
-        self.log.info('{params.inputfile} succesfully converted', params=self.params)
+        self.log.info('{params.inputfile} succesfully converted', params=self.job)
 
     # TODO: Subtitles
 
 
 class BaseJob(object):
     def __init__(self, params):
+        """
+
+        :type params: dict
+        """
         try:
             self.inputfile = params['inputfile']
             self.original = params['original']
         except KeyError:
             raise Exception('Request dict should contain inputfile and original')
+
+    def tag(self, output, language='en', artwork=False, thumbnail=False):
+        pass
 
 
 class TVJob(BaseJob):
@@ -199,6 +197,26 @@ class TVJob(BaseJob):
         except KeyError:
             raise Exception('Request dict should contain tvdb_id, season number and episode number')
 
+    def tag(self, output, language='en', artwork=False, thumbnail=False):  # TODO: handle return value
+        """
+
+        :param output: dict
+        :param language: str
+        :param artwork: bool
+        :param thumbnail: bool
+        :return: None
+        """
+        self.log.debug('Tagging TV Show')
+        try:
+            from tvdb_mp4 import Tvdb_mp4
+            tagmp4 = Tvdb_mp4(self.tvdb_id, self.season, self.episode, self.original,
+                              language=language)
+            tagmp4.setHD(output['x'], output['y'])
+            tagmp4.writeTags(output['output'], artwork, thumbnail)
+        except:
+            self.log.error('Tagging of {file} failed', output=output)
+        self.log.debug('File {output.output} tagged successfully', output=output)
+
 
 class MovieJob(BaseJob):
     def __init__(self, params):
@@ -207,6 +225,17 @@ class MovieJob(BaseJob):
             self.imdb_id = int(params['imdb_id'])
         except KeyError:
             raise Exception('Request dict should contain imdbid')
+
+    def tag(self, output, language='en', artwork=False, thumbnail=False):
+        try:
+            from tmdb_mp4 import tmdb_mp4
+            tagmp4 = tmdb_mp4(self.imdb_id, original=self.original,
+                              language=language)
+            tagmp4.setHD(output['x'], output['y'])
+            tagmp4.writeTags(output['output'], artwork)
+        except:
+            self.log.error('Tagging of {file} failed', output=output)
+        self.log.debug('File {output.output} tagged successfully', output=output)
 
 
 class ManualJob(BaseJob):
