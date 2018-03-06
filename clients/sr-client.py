@@ -32,7 +32,7 @@ if len(sys.argv) > 4:
         print('Could not create request')
         sys.exit()
 
-    s.convert(request)
+    print(s.convert(request))
 else:
     print("Not enough command line arguments present %s." % len(sys.argv))
     sys.exit

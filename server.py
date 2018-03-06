@@ -2,13 +2,13 @@
 from __future__ import print_function
 
 # from post_processor import PostProcessor
-# from logging.config import fileConfig
 import json
 import os
 import sys
 
 from twisted.internet import defer, threads
-from twisted.logger import Logger, textFileLogObserver
+from twisted.logger import Logger, textFileLogObserver, FilteringLogObserver, LogLevelFilterPredicate, LogLevel, \
+    globalLogPublisher
 from twisted.web import xmlrpc, server
 
 from mkvtomp4 import MkvtoMp4
@@ -27,7 +27,7 @@ class RPCServer(xmlrpc.XMLRPC):
         try:
             params = FactoryJob.getjob(request['params'])
         except Exception as e:
-            return 'Request {request!r} refused: {e.message}'.format(request=request, e=e)
+            return 'Request refused: {request!r} ; {e.message}'.format(request=request, e=e)
 
         try:
             settings = request['settings']
@@ -106,8 +106,7 @@ class RemoteConverter(object):
         :param logger: twisted.logger
         :param settings: ReadSettings
         """
-        self.log = logger if logger else Logger(observer=textFileLogObserver(sys.stdout), namespace='RemoteConverter')
-        self.log.namespace = 'RemoteConverter'
+        # self.log.namespace = 'RemoteConverter'
         assert isinstance(job, BaseJob)
         self.job = job
         self.settings = self._overridesettings(settings)
@@ -122,12 +121,12 @@ class RemoteConverter(object):
 
         if override is not None:
             assert isinstance(override, dict)
-            self.log.info('Overriding default settings')
+            log.info('Overriding default settings')
             for k, v in override.iteritems():
                 if k in settings.__dict__.keys():
                     settings.__dict__[k] = v  # TODO: decode the unicode value to str
                 else:
-                    self.log.error('incorrect key {k}'.format(k))
+                    log.error('incorrect key {k}'.format(k=k))
         return settings
 
     def convert(self):
@@ -147,36 +146,44 @@ class RemoteConverter(object):
         return self.converter.validSource(self.job.inputfile)
 
     def tag(self, output):
-        self.log.debug('Tagging file {output.output}', output=output)
-        self.job.tag(output, language=self.settings.taglanguage, artwork=self.settings.artwork,
-                     thumbnail=self.settings.thumbnail)
+        log.debug('Tagging file {output}', output=output['output'])
+        if self.job.tag(output, language=self.settings.taglanguage, artwork=self.settings.artwork,
+                        thumbnail=self.settings.thumbnail):
+            log.debug('File tagged successfuly')
         return output
 
     def qtfs(self, output):
-        self.log.debug('Launching qtfs')
+        log.debug('Launching qtfs')
         self.converter.QTFS(output['output'])
         return output
 
     def replicate(self, output):
         files = self.converter.replicate(output['output'])
-        self.log.debug('{files} succesfully moved', files=files)
+        log.debug('{files} succesfully moved', files=files)
         return files
 
     def logerrors(self, reason):
-        self.log.error(reason.getErrorMessage())
+        log.error(reason.getErrorMessage())
 
     def logsuccess(self, _):
-        self.log.info('{params.inputfile} succesfully converted', params=self.job)
+        log.info('{params.inputfile} succesfully converted', params=self.job)
 
-    # TODO: Subtitles
+    def refresh_plex(self):
+        from autoprocess import plex
+        plex.refreshPlex(self.settings, 'show')
+
+    def refresh_sickrage(self):
+        import urllib
+        try:
+            refresh = json.load(urllib.urlopen(self.settings.getRefreshURL(self.job.tvdb_id)))
+            for item in refresh:
+                log.debug(refresh[item])
+        except (IOError, ValueError):
+            log.exception("Couldn't refresh Sickbeard, check your autoProcess.ini settings.")
 
 
 class BaseJob(object):
     def __init__(self, params):
-        """
-
-        :type params: dict
-        """
         try:
             self.inputfile = params['inputfile']
             self.original = params['original']
@@ -195,18 +202,11 @@ class TVJob(BaseJob):
             self.season = int(params['season'])
             self.episode = int(params['episode'])
         except KeyError:
+            log.debug('Received incorrect params')
             raise Exception('Request dict should contain tvdb_id, season number and episode number')
 
-    def tag(self, output, language='en', artwork=False, thumbnail=False):  # TODO: handle return value
-        """
+    def tag(self, output, language='en', artwork=False, thumbnail=False):
 
-        :param output: dict
-        :param language: str
-        :param artwork: bool
-        :param thumbnail: bool
-        :return: None
-        """
-        self.log.debug('Tagging TV Show')
         try:
             from tvdb_mp4 import Tvdb_mp4
             tagmp4 = Tvdb_mp4(self.tvdb_id, self.season, self.episode, self.original,
@@ -214,8 +214,10 @@ class TVJob(BaseJob):
             tagmp4.setHD(output['x'], output['y'])
             tagmp4.writeTags(output['output'], artwork, thumbnail)
         except:
-            self.log.error('Tagging of {file} failed', output=output)
-        self.log.debug('File {output.output} tagged successfully', output=output)
+            log.error('Tagging of {file} failed', output=output)
+            return False
+        log.debug('File {output.output} tagged successfully', output=output)
+        return True
 
 
 class MovieJob(BaseJob):
@@ -234,8 +236,8 @@ class MovieJob(BaseJob):
             tagmp4.setHD(output['x'], output['y'])
             tagmp4.writeTags(output['output'], artwork)
         except:
-            self.log.error('Tagging of {file} failed', output=output)
-        self.log.debug('File {output.output} tagged successfully', output=output)
+            log.error('Tagging of {file} failed', output=output)
+        log.debug('File {output.output} tagged successfully', output=output)
 
 
 class ManualJob(BaseJob):
@@ -258,7 +260,11 @@ class FactoryJob(object):
 
 
 if __name__ == '__main__':
-    log = Logger(observer=textFileLogObserver(sys.stdout), namespace='RemoteConverter')
+    log = Logger()
+    level = LogLevel.info
+    predicate = LogLevelFilterPredicate(defaultLogLevel=level)
+    observer = FilteringLogObserver(textFileLogObserver(sys.stdout), [predicate])
+    globalLogPublisher.addObserver(observer)
 
     from twisted.internet import reactor
 
