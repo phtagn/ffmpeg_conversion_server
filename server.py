@@ -15,6 +15,7 @@ from mkvtomp4 import MkvtoMp4
 from readSettings import ReadSettings
 
 
+# TODO: set-up alert when fails. Push notifications ? mail ?
 class RPCServer(xmlrpc.XMLRPC):
 
     def xmlrpc_convert(self, convertinfo):
@@ -25,14 +26,15 @@ class RPCServer(xmlrpc.XMLRPC):
             return 'Request refused, params should be a json object'
 
         try:
-            params = FactoryJob.getjob(request['params'])
+            params = FactoryJob.getjob(request)
         except Exception as e:
             return 'Request refused: {request!r} ; {e.message}'.format(request=request, e=e)
 
         try:
-            settings = request['settings']
+            if request['settings']:
+                settings = request['settings']
         except KeyError:
-            settings = None
+            settings = {}
 
         rc = RemoteConverter(params, settings=settings)
 
@@ -99,11 +101,10 @@ class SimpleJobQueue(object):
 class RemoteConverter(object):
     """Remote Converter expects """
 
-    def __init__(self, job, logger=None, settings=None):
+    def __init__(self, job, settings):
         """
 
         :param job: BaseJob
-        :param logger: twisted.logger
         :param settings: ReadSettings
         """
         # self.log.namespace = 'RemoteConverter'
@@ -115,7 +116,6 @@ class RemoteConverter(object):
     def _overridesettings(self, override):
         try:
             settings = ReadSettings(os.path.dirname(sys.argv[0]), "autoProcess.ini")
-            # settings = ReadSettings('/Users/Jon/Downloads/config/', 'autoProcess.ini')
         except:
             raise IOError('Could not find settings file')
 
@@ -140,6 +140,10 @@ class RemoteConverter(object):
             d.addCallback(self.qtfs)
 
         d.addCallback(self.replicate)
+
+        if self.settings.Plex['host']:
+            d.addCallbacks(self.refresh_plex)
+
         d.addCallbacks(self.logsuccess, self.logerrors)
 
     def isjobvalid(self):
@@ -159,7 +163,7 @@ class RemoteConverter(object):
 
     def replicate(self, output):
         files = self.converter.replicate(output['output'])
-        log.debug('{files} succesfully moved', files=files)
+        log.debug('{files!r} succesfully moved', files=files)
         return files
 
     def logerrors(self, reason):
@@ -168,7 +172,7 @@ class RemoteConverter(object):
     def logsuccess(self, _):
         log.info('{params.inputfile} succesfully converted', params=self.job)
 
-    def refresh_plex(self):
+    def refresh_plex(self, _):
         from autoprocess import plex
         plex.refreshPlex(self.settings, 'show')
 
@@ -183,10 +187,19 @@ class RemoteConverter(object):
 
 
 class BaseJob(object):
-    def __init__(self, params):
+    def __init__(self, request):
+        self.params = request['params']
+
         try:
-            self.inputfile = params['inputfile']
-            self.original = params['original']
+            self.inputfile = self.params['inputfile']
+            self.original = self.params['original']
+
+            if request['pathequiv']:
+                log.debug('pathequiv = {var!r}', var=request['pathequiv'])
+                for k, v in request['pathequiv'].iteritems():
+                    self.inputfile = self.inputfile.replace(k, v)
+                    self.original = self.original.replace(k, v)
+
         except KeyError:
             raise Exception('Request dict should contain inputfile and original')
 
@@ -195,12 +208,12 @@ class BaseJob(object):
 
 
 class TVJob(BaseJob):
-    def __init__(self, params):
-        super(TVJob, self).__init__(params)
+    def __init__(self, request):
+        super(TVJob, self).__init__(request)
         try:
-            self.tvdb_id = int(params['tvdb_id'])
-            self.season = int(params['season'])
-            self.episode = int(params['episode'])
+            self.tvdb_id = int(self.params['tvdb_id'])
+            self.season = int(self.params['season'])
+            self.episode = int(self.params['episode'])
         except KeyError:
             log.debug('Received incorrect params')
             raise Exception('Request dict should contain tvdb_id, season number and episode number')
@@ -214,17 +227,17 @@ class TVJob(BaseJob):
             tagmp4.setHD(output['x'], output['y'])
             tagmp4.writeTags(output['output'], artwork, thumbnail)
         except:
-            log.error('Tagging of {file} failed', output=output)
+            log.error('Tagging of {file} failed', file=output)
             return False
-        log.debug('File {output.output} tagged successfully', output=output)
+        log.debug('File {file} tagged successfully', file=output)
         return True
 
 
 class MovieJob(BaseJob):
-    def __init__(self, params):
-        super(MovieJob, self).__init__(params)
+    def __init__(self, request):
+        super(MovieJob, self).__init__(request)
         try:
-            self.imdb_id = int(params['imdb_id'])
+            self.imdb_id = int(self.params['imdb_id'])
         except KeyError:
             raise Exception('Request dict should contain imdbid')
 
@@ -249,21 +262,24 @@ class FactoryJob(object):
         pass
 
     @staticmethod
-    def getjob(params):
-        if params['jobtype'] == 'tvshow':
-            return TVJob(params)
-        if params['jobtype'] == 'movie':
-            return MovieJob(params)
-        if params['jobtype'] == 'manual':
-            return ManualJob(params)
-        raise Exception('No such jobtype, accepted types are tvshow, movie, and manual')
+    def getjob(request):
+        try:
+            if request['params']['jobtype'] == 'tvshow':
+                return TVJob(request)
+            if request['params']['jobtype'] == 'movie':
+                return MovieJob(request)
+            if request['params']['jobtype'] == 'manual':
+                return ManualJob(request)
+        except Exception as e:
+            raise e
+        #Exception('No such jobtype, accepted types are tvshow, movie, and manual')
 
 
 if __name__ == '__main__':
     log = Logger()
     level = LogLevel.info
     predicate = LogLevelFilterPredicate(defaultLogLevel=level)
-    observer = FilteringLogObserver(textFileLogObserver(sys.stdout), [predicate])
+    observer = FilteringLogObserver(textFileLogObserver(sys.stderr), [predicate])
     globalLogPublisher.addObserver(observer)
 
     from twisted.internet import reactor

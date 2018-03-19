@@ -1,15 +1,17 @@
 #!/usr/bin/env python
+import logging
 import os
 import sys
-import logging
-import requests
 import time
-from readSettings import ReadSettings
+from logging.config import fileConfig
+
+import requests
+
 from autoprocess import plex
-from tvdb_mp4 import Tvdb_mp4
 from mkvtomp4 import MkvtoMp4
 from post_processor import PostProcessor
-from logging.config import fileConfig
+from readSettings import ReadSettings
+from tvdb_mp4 import Tvdb_mp4
 
 fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log')})
 log = logging.getLogger("SonarrPostConversion")

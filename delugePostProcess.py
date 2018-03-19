@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
+import logging
 import os
 import sys
-from autoprocess import autoProcessTV, autoProcessMovie, autoProcessTVSR, sonarr, radarr
-from readSettings import ReadSettings
-from mkvtomp4 import MkvtoMp4
-from deluge_client import DelugeRPCClient
-import logging
 from logging.config import fileConfig
+
+from deluge_client import DelugeRPCClient
+
+from autoprocess import autoProcessTV, autoProcessMovie, autoProcessTVSR, sonarr, radarr
+from mkvtomp4 import MkvtoMp4
+from readSettings import ReadSettings
 
 fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log').replace("\\", "/")})
 log = logging.getLogger("delugePostProcess")

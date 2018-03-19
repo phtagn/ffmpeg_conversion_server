@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
-import sys
-import os
 import logging
-from readSettings import ReadSettings
-from mkvtomp4 import MkvtoMp4
-from tmdb_mp4 import tmdb_mp4
-from autoprocess import plex
-from post_processor import PostProcessor
+import os
+import sys
 from logging.config import fileConfig
+
+from autoprocess import plex
+from mkvtomp4 import MkvtoMp4
+from post_processor import PostProcessor
+from readSettings import ReadSettings
+from tmdb_mp4 import tmdb_mp4
 
 fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log')})
 log = logging.getLogger("CouchPotatoPostConversion")

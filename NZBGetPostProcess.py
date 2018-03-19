@@ -42,8 +42,6 @@
 
 import os
 import sys
-import re
-import json
 import traceback
 
 # Sanity checks for path string

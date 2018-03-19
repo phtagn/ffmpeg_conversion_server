@@ -4,7 +4,6 @@ try:
     from urllib.request import urlretrieve
 except ImportError:
     from urllib import urlretrieve
-import urllib
 try:
     from StringIO import StringIO
 except ImportError:

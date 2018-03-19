@@ -1,6 +1,6 @@
 #!/usr/bin/python
-import os
 import json
+import os
 
 
 def main():

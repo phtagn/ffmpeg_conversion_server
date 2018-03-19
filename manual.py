@@ -1,22 +1,23 @@
 #!/usr/bin/env python
 
-import sys
-import os
-import guessit
-import locale
-import glob
 import argparse
-import struct
+import glob
 import logging
-from readSettings import ReadSettings
-from tvdb_mp4 import Tvdb_mp4
-from tmdb_mp4 import tmdb_mp4
+import os
+import struct
+import sys
+from logging.config import fileConfig
+
+import guessit
+
+from extensions import tmdb_api_key
 from mkvtomp4 import MkvtoMp4
 from post_processor import PostProcessor
-from tvdb_api import tvdb_api
+from readSettings import ReadSettings
 from tmdb_api import tmdb
-from extensions import tmdb_api_key
-from logging.config import fileConfig
+from tmdb_mp4 import tmdb_mp4
+from tvdb_api import tvdb_api
+from tvdb_mp4 import Tvdb_mp4
 
 if sys.version[0] == "3":
     raw_input = input

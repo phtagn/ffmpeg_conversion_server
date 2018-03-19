@@ -8,20 +8,16 @@ PATHEQUIV = {}
 SERVER_ADDRESS = 'http://localhost:7080'
 s = xmlrpclib.Server(SERVER_ADDRESS)
 
-if len(sys.argv) > 4:
-    inputfile = sys.argv[1]
-    original = sys.argv[2]
-    tvdb_id = int(sys.argv[3])
-    season = int(sys.argv[4])
-    episode = int(sys.argv[5])
+if len(sys.argv) > 3:
+    imdbid = sys.argv[1]
+    inputfile = sys.argv[2]
+    original = sys.argv[3]
 
     request = {'params':
-                   {'jobtype': 'tvshow',
+                   {'jobtype': 'movie',
                     'inputfile': inputfile,
                     'original': original,
-                    'tvdb_id': tvdb_id,
-                    'season': season,
-                    'episode': episode,
+                    'imdb_id': imdbid
                     }
                }
 

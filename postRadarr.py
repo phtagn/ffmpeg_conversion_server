@@ -1,15 +1,17 @@
 #!/usr/bin/env python
+import logging
 import os
 import sys
-import logging
-from readSettings import ReadSettings
+import time
+from logging.config import fileConfig
+
+import requests
+
 from autoprocess import plex
-from tmdb_mp4 import tmdb_mp4
 from mkvtomp4 import MkvtoMp4
 from post_processor import PostProcessor
-from logging.config import fileConfig
-import time
-import requests
+from readSettings import ReadSettings
+from tmdb_mp4 import tmdb_mp4
 
 fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log')})
 log = logging.getLogger("RadarrPostConversion")
