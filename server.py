@@ -30,11 +30,13 @@ class RPCServer(xmlrpc.XMLRPC):
         except Exception as e:
             return 'Request refused: {request!r} ; {e.message}'.format(request=request, e=e)
 
+        settings = {}
         try:
             if request['settings']:
                 settings = request['settings']
         except KeyError:
-            settings = {}
+            log.debug('No settings override')
+            pass
 
         rc = RemoteConverter(params, settings=settings)
 
@@ -119,7 +121,7 @@ class RemoteConverter(object):
         except:
             raise IOError('Could not find settings file')
 
-        if override is not None:
+        if override:
             assert isinstance(override, dict)
             log.info('Overriding default settings')
             for k, v in override.iteritems():
@@ -141,7 +143,7 @@ class RemoteConverter(object):
 
         d.addCallback(self.replicate)
 
-        if self.settings.Plex['host']:
+        if self.settings.Plex['refresh']:
             d.addCallbacks(self.refresh_plex)
 
         d.addCallbacks(self.logsuccess, self.logerrors)
@@ -173,6 +175,7 @@ class RemoteConverter(object):
         log.info('{params.inputfile} succesfully converted', params=self.job)
 
     def refresh_plex(self, _):
+        log.info('Refreshing plex')
         from autoprocess import plex
         plex.refreshPlex(self.settings, 'show')
 
