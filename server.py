@@ -195,13 +195,14 @@ class BaseJob(object):
 
         try:
             self.inputfile = self.params['inputfile']
-            self.original = self.params['original']
+            self.original = self.params['original'] if self.params['original'] else None
 
             if request['pathequiv']:
                 log.debug('pathequiv = {var!r}', var=request['pathequiv'])
                 for k, v in request['pathequiv'].iteritems():
                     self.inputfile = self.inputfile.replace(k, v)
-                    self.original = self.original.replace(k, v)
+                    if self.original:
+                        self.original = self.original.replace(k, v)
 
         except KeyError:
             raise Exception('Request dict should contain inputfile and original')
@@ -258,7 +259,7 @@ class MovieJob(BaseJob):
 
 class ManualJob(BaseJob):
     def __init__(self, request):
-        super(MovieJob, self).__init__(request)
+        super(ManualJob, self).__init__(request)
 
     def tag(self, output, language='en', artwork=False, thumbnail=False):
         # TODO: implement tagging for manual jobs
