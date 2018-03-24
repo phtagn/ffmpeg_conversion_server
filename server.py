@@ -285,7 +285,7 @@ class FactoryJob(object):
 
 if __name__ == '__main__':
     log = Logger()
-    level = LogLevel.info
+    level = LogLevel.debug
     predicate = LogLevelFilterPredicate(defaultLogLevel=level)
     observer = FilteringLogObserver(textFileLogObserver(sys.stderr), [predicate])
     globalLogPublisher.addObserver(observer)
