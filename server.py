@@ -257,7 +257,12 @@ class MovieJob(BaseJob):
 
 
 class ManualJob(BaseJob):
-    pass  # TODO: Ability to send a manual job
+    def __init__(self, request):
+        super(MovieJob, self).__init__(request)
+
+    def tag(self, output, language='en', artwork=False, thumbnail=False):
+        # TODO: implement tagging for manual jobs
+        return True
 
 
 class FactoryJob(object):
