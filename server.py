@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
-# from post_processor import PostProcessor
 import json
 import os
 import sys
@@ -15,28 +14,50 @@ from mkvtomp4 import MkvtoMp4
 from readSettings import ReadSettings
 
 
+def loadsettings(inifile=None):
+    settings = None
+
+    if inifile and os.path.isfile(inifile):
+        path = os.path.abspath(inifile)
+        settings_dir, filename = os.path.split(path)
+        try:
+            settings = ReadSettings(settings_dir, filename)
+            log.info('Loaded settings from file {inifile}', inifile=inifile)
+            return settings
+        except:
+            log.error('{inifile} supplied, but could not load settings', inifile=inifile)
+
+    if not settings:
+        try:
+            settings = ReadSettings(os.path.dirname(sys.argv[0]), "autoProcess.ini")
+            log.info('Loaded default settings from {dir}/autoProcess.ini', dir=os.path.dirname(sys.argv[0]))
+            return settings
+            # return 'Loaded default settings for {path}'.format(path=os.path.dirname(sys.argv[0]))
+        except Exception as e:
+            raise xmlrpc.Fault(5, 'Failed loading settings or default settings, with exception {exc}'.format(
+                exc=e))
+
 # TODO: set-up alert when fails. Push notifications ? mail ?
 class RPCServer(xmlrpc.XMLRPC):
 
-    def xmlrpc_convert(self, convertinfo):
+    def xmlrpc_convert(self, convertinfo, inifile=None):
+        """Adds a conversion job to the queue"""
+
+        try:
+            settings = loadsettings(inifile=inifile)
+        except Exception as e:
+            raise e
+
         try:
             request = json.loads(convertinfo)
             log.debug('Received request: {request!r}', request=request)
         except:
-            return 'Request refused, params should be a json object'
+            raise xmlrpc.Fault(1, 'Request refused, params should be a json object')
 
         try:
             params = FactoryJob.getjob(request)
         except Exception as e:
-            return 'Request refused: {request!r} ; {e.message}'.format(request=request, e=e)
-
-        settings = {}
-        try:
-            if request['settings']:
-                settings = request['settings']
-        except KeyError:
-            log.debug('No settings override')
-            pass
+            raise xmlrpc.Fault(2, 'Request refused: {request!r} ; {e.message}'.format(request=request, e=e))
 
         rc = RemoteConverter(params, settings=settings)
 
@@ -46,7 +67,7 @@ class RPCServer(xmlrpc.XMLRPC):
             return 'Request accepted: {params.inputfile}'.format(params=params)
         else:
             log.error('{params.inputfile} is not a valid source', params=params)
-            return 'Request refused: {params.inputfile} is not a valid source'.format(params=params)
+            raise xmlrpc.Fault(4, 'Request refused: {params.inputfile} is not a valid source'.format(params=params))
 
 
 class Singleton(type):
@@ -112,24 +133,9 @@ class RemoteConverter(object):
         # self.log.namespace = 'RemoteConverter'
         assert isinstance(job, BaseJob)
         self.job = job
-        self.settings = self._overridesettings(settings)
+        assert isinstance(settings, ReadSettings)
+        self.settings = settings
         self.converter = MkvtoMp4(self.settings)
-
-    def _overridesettings(self, override):
-        try:
-            settings = ReadSettings(os.path.dirname(sys.argv[0]), "autoProcess.ini")
-        except:
-            raise IOError('Could not find settings file')
-
-        if override:
-            assert isinstance(override, dict)
-            log.info('Overriding default settings')
-            for k, v in override.iteritems():
-                if k in settings.__dict__.keys():
-                    settings.__dict__[k] = v  # TODO: decode the unicode value to str
-                else:
-                    log.error('incorrect key {k}'.format(k=k))
-        return settings
 
     def convert(self):
         q = SimpleJobQueue(2)
@@ -145,6 +151,9 @@ class RemoteConverter(object):
 
         if self.settings.Plex['refresh']:
             d.addCallbacks(self.refresh_plex)
+
+        if self.settings.Sickbeard['api_key']:
+            d.addCallbacks(self.refresh_sickrage)
 
         d.addCallbacks(self.logsuccess, self.logerrors)
 
@@ -179,7 +188,7 @@ class RemoteConverter(object):
         from autoprocess import plex
         plex.refreshPlex(self.settings, 'show')
 
-    def refresh_sickrage(self):
+    def refresh_sickrage(self, _):
         import urllib
         try:
             refresh = json.load(urllib.urlopen(self.settings.getRefreshURL(self.job.tvdb_id)))
@@ -205,7 +214,7 @@ class BaseJob(object):
                         self.original = self.original.replace(k, v)
 
         except KeyError:
-            raise Exception('Request dict should contain inputfile and original')
+            raise Exception('Request dict should contain inputfile, original and pathequiv')
 
     def tag(self, output, language='en', artwork=False, thumbnail=False):
         pass
@@ -294,5 +303,6 @@ if __name__ == '__main__':
     from twisted.internet import reactor
 
     r = RPCServer()
+    xmlrpc.addIntrospection(r)
     reactor.listenTCP(7080, server.Site(r))
     reactor.run()
