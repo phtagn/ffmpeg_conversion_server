@@ -304,5 +304,8 @@ if __name__ == '__main__':
 
     r = RPCServer()
     xmlrpc.addIntrospection(r)
+    port = os.getenv('MP4PORT', 7080)
+    port = int(port) if port.isnumeric() else 7080
+
     reactor.listenTCP(7080, server.Site(r))
     reactor.run()
