@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #encoding:utf-8
 #author:dbr/Ben
-#project:tvdb_api
+# project:tvdb_api_old
 #repository:http://github.com/dbr/tvdb_api
 #license:unlicense (http://unlicense.org/)
 

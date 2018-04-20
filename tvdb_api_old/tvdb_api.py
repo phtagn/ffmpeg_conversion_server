@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #encoding:utf-8
 #author:dbr/Ben
-#project:tvdb_api
+# project:tvdb_api_old
 #repository:http://github.com/dbr/tvdb_api
 #license:unlicense (http://unlicense.org/)
 
@@ -9,7 +9,7 @@
 
 Example usage:
 
->>> from tvdb_api import Tvdb
+>>> from tvdb_api_old import Tvdb
 >>> t = Tvdb()
 >>> t['Lost'][4][11]['episodename']
 u'Cabin Fever'
@@ -24,7 +24,6 @@ IS_PY2 = sys.version_info[0] == 2
 import os
 import time
 if IS_PY2:
-    import urllib
     import urllib2
     from tvdb_cache import CacheHandler
     from urllib import quote as url_quote
@@ -58,13 +57,13 @@ else:
 
 
 from .tvdb_ui import BaseUI, ConsoleUI
-from .tvdb_exceptions import (tvdb_error, tvdb_userabort, tvdb_shownotfound,
-    tvdb_seasonnotfound, tvdb_episodenotfound, tvdb_attributenotfound)
+from .tvdb_exceptions import (tvdb_error, tvdb_shownotfound,
+                              tvdb_seasonnotfound, tvdb_episodenotfound, tvdb_attributenotfound)
 
 lastTimeout = None
 
 def log():
-    return logging.getLogger("tvdb_api")
+    return logging.getLogger("tvdb_api_old")
 
 
 class ShowContainer(dict):
@@ -337,7 +336,7 @@ class Tvdb:
 
         cache (True/False/str/unicode/urllib2 opener):
             Retrieved XML are persisted to to disc. If true, stores in
-            tvdb_api folder under your systems TEMP_DIR, if set to
+            tvdb_api_old folder under your systems TEMP_DIR, if set to
             str/unicode instance it will use this as the cache
             location. If False, disables caching.  Can also be passed
             an arbitrary Python object, which is used as a urllib2
@@ -381,9 +380,9 @@ class Tvdb:
         
         apikey (str/unicode):
             Override the default thetvdb.com API key. By default it will use
-            tvdb_api's own key (fine for small scripts), but you can use your
+            tvdb_api_old's own key (fine for small scripts), but you can use your
             own key if desired - this is recommended if you are embedding
-            tvdb_api in a larger application)
+            tvdb_api_old in a larger application)
             See http://thetvdb.com/?tab=apiregister to get your own key
 
         forceConnect (bool):
@@ -413,7 +412,7 @@ class Tvdb:
         if apikey is not None:
             self.config['apikey'] = apikey
         else:
-            self.config['apikey'] = "0629B785CE550C8D" # tvdb_api's API key
+            self.config['apikey'] = "0629B785CE550C8D"  # tvdb_api_old's API key
 
         self.config['debug_enabled'] = debug # show debugging messages
 
@@ -446,7 +445,7 @@ class Tvdb:
                 self.session = requests_cache.CachedSession(
                     expire_after=21600, # 6 hours
                     backend='sqlite',
-                    cache_name=os.path.join(cache, "tvdb_api"),
+                    cache_name=os.path.join(cache, "tvdb_api_old"),
                     )
             else:
                 self.session = cache
@@ -487,7 +486,7 @@ class Tvdb:
         self.config['actors_enabled'] = actors
 
         if self.config['debug_enabled']:
-            warnings.warn("The debug argument to tvdb_api.__init__ will be removed in the next version. "
+            warnings.warn("The debug argument to tvdb_api_old.__init__ will be removed in the next version. "
             "To enable debug messages, use the following code before importing: "
             "import logging; logging.basicConfig(level=logging.DEBUG)")
             logging.basicConfig(level=logging.DEBUG)
@@ -504,7 +503,7 @@ class Tvdb:
         # thetvdb.com should be based around numeric language codes,
         # but to link to a series like http://thetvdb.com/?tab=series&id=79349&lid=16
         # requires the language ID, thus this mapping is required (mainly
-        # for usage in tvdb_ui - internally tvdb_api will use the language abbreviations)
+        # for usage in tvdb_ui - internally tvdb_api_old will use the language abbreviations)
         self.config['langabbv_to_id'] = {'el': 20, 'en': 7, 'zh': 27,
         'it': 15, 'cs': 28, 'es': 16, 'ru': 22, 'nl': 13, 'pt': 26, 'no': 9,
         'tr': 21, 'pl': 18, 'fr': 17, 'hr': 31, 'de': 14, 'da': 10, 'fi': 11,
@@ -539,8 +538,8 @@ class Tvdb:
         self.config['url_artworkPrefix'] = u"%(base_url)s/banners/%%s" % self.config
 
     def _getTempDir(self):
-        """Returns the [system temp dir]/tvdb_api-u501 (or
-        tvdb_api-myuser)
+        """Returns the [system temp dir]/tvdb_api_old-u501 (or
+        tvdb_api_old-myuser)
         """
         if hasattr(os, 'getuid'):
             uid = "u%d" % (os.getuid())
@@ -549,9 +548,9 @@ class Tvdb:
             try:
                 uid = getpass.getuser()
             except ImportError:
-                return os.path.join(tempfile.gettempdir(), "tvdb_api")
+                return os.path.join(tempfile.gettempdir(), "tvdb_api_old")
 
-        return os.path.join(tempfile.gettempdir(), "tvdb_api-%s" % (uid))
+        return os.path.join(tempfile.gettempdir(), "tvdb_api_old-%s" % (uid))
 
     def _loadUrl(self, url, recache = False, language=None):
         if not IS_PY2:
@@ -646,7 +645,7 @@ class Tvdb:
                     )
 
                 errormsg += "\nIf this does not resolve the issue, please try again later. If the error persists, report a bug on"
-                errormsg += "\nhttp://dbr.lighthouseapp.com/projects/13342-tvdb_api/overview\n"
+                errormsg += "\nhttp://dbr.lighthouseapp.com/projects/13342-tvdb_api_old/overview\n"
                 raise tvdb_error(errormsg)
 
     def _setItem(self, sid, seas, ep, attrib, value):
@@ -795,9 +794,9 @@ class Tvdb:
         >>> t = Tvdb(actors = True)
         >>> actors = t['scrubs']['_actors']
         >>> type(actors)
-        <class 'tvdb_api.Actors'>
+        <class 'tvdb_api_old.Actors'>
         >>> type(actors[0])
-        <class 'tvdb_api.Actor'>
+        <class 'tvdb_api_old.Actor'>
         >>> actors[0]
         <Actor "Zach Braff">
         >>> sorted(actors[0].keys())
@@ -958,7 +957,7 @@ class Tvdb:
 
 
 def main():
-    """Simple example of using tvdb_api - it just
+    """Simple example of using tvdb_api_old - it just
     grabs an episode name interactively.
     """
     import logging

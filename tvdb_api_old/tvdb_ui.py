@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #encoding:utf-8
 #author:dbr/Ben
-#project:tvdb_api
+# project:tvdb_api_old
 #repository:http://github.com/dbr/tvdb_api
 #license:unlicense (http://unlicense.org/)
 
@@ -35,7 +35,7 @@ A simple example callback, which returns a random series:
 
 Then to use it..
 
->>> from tvdb_api import Tvdb
+>>> from tvdb_api_old import Tvdb
 >>> t = Tvdb(custom_ui = RandomUI)
 >>> random_matching_series = t['Lost']
 >>> type(random_matching_series)
@@ -45,12 +45,11 @@ Then to use it..
 __author__ = "dbr/Ben"
 __version__ = "1.10"
 
-import sys
 import logging
+import sys
 import warnings
 
 from .tvdb_exceptions import tvdb_userabort
-
 
 IS_PY2 = sys.version_info[0] == 2
 

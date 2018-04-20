@@ -10,6 +10,7 @@ from twisted.logger import Logger, textFileLogObserver, FilteringLogObserver, Lo
     globalLogPublisher
 from twisted.web import xmlrpc, server
 
+from converter.ffmpeg import FFMpegError, FFMpegConvertError
 from mkvtomp4 import MkvtoMp4
 from readSettings import ReadSettings
 
@@ -63,8 +64,9 @@ class RPCServer(xmlrpc.XMLRPC):
 
         if rc.isjobvalid():
             log.info('Accepted job {params.inputfile}', params=params)
-            rc.convert()
-            return 'Request accepted: {params.inputfile}'.format(params=params)
+            d = rc.convert()
+            return d
+            # return 'Request accepted: {params.inputfile}'.format(params=params)
         else:
             log.error('{params.inputfile} is not a valid source', params=params)
             raise xmlrpc.Fault(4, 'Request refused: {params.inputfile} is not a valid source'.format(params=params))
@@ -117,9 +119,10 @@ class SimpleJobQueue(object):
         f, args, kwargs = job
         self.processing += 1
         d = threads.deferToThread(f, *args, **kwargs)
-        d.addBoth(self._endjob)
+        d.addCallback(self._endjob)
         return d
 
+        # return reason
 
 class RemoteConverter(object):
     """Remote Converter expects """
@@ -136,57 +139,89 @@ class RemoteConverter(object):
         assert isinstance(settings, ReadSettings)
         self.settings = settings
         self.converter = MkvtoMp4(self.settings)
+        self.status = {}
 
     def convert(self):
         q = SimpleJobQueue(2)
+
         d = q.addjob(self.converter.process, self.job.inputfile, original=self.job.original)
 
+        d.addCallbacks(self.getresults, self.handleerror)
+
         if self.settings.tagfile:
-            d.addCallback(self.tag)
+            d.addCallbacks(self.tag, self.handleerror)
 
         if self.settings.relocate_moov:
-            d.addCallback(self.qtfs)
+            d.addCallbacks(self.qtfs, self.handleerror)
 
-        d.addCallback(self.replicate)
+        d.addCallbacks(self.replicate, self.handleerror)
 
         if self.settings.Plex['refresh']:
-            d.addCallbacks(self.refresh_plex)
+            d.addCallbacks(self.refresh_plex, self.handleerror)
 
         if self.settings.Sickbeard['api_key']:
-            d.addCallbacks(self.refresh_sickrage)
+            d.addCallbacks(self.refresh_sickrage, self.handleerror)
 
         d.addCallbacks(self.logsuccess, self.logerrors)
+        return d
 
     def isjobvalid(self):
         return self.converter.validSource(self.job.inputfile)
 
+    def getresults(self, output):
+        self.job.outputfile = output['output']
+        self.job.x = output['x']
+        self.job.y = output['y']
+
     def tag(self, output):
         log.debug('Tagging file {output}', output=output['output'])
-        if self.job.tag(output, language=self.settings.taglanguage, artwork=self.settings.artwork,
-                        thumbnail=self.settings.thumbnail):
+        try:
+            result = self.job.tag(output, language=self.settings.taglanguage, artwork=self.settings.artwork,
+                                  thumbnail=self.settings.thumbnail)
+        except:
+            raise TagError
+
+        if result:
             log.debug('File tagged successfuly')
+            self.status['tag'] = 'success'
         return output
 
     def qtfs(self, output):
         log.debug('Launching qtfs')
-        self.converter.QTFS(output['output'])
+        try:
+            self.outputfile = self.converter.QTFS(self.outputfile)
+        except:
+            raise Exception
+
+        self.status['qtfs'] = 'success'
         return output
 
     def replicate(self, output):
         files = self.converter.replicate(output['output'])
         log.debug('{files!r} succesfully moved', files=files)
+        self.status['replicate'] = files
         return files
 
-    def logerrors(self, reason):
-        log.error(reason.getErrorMessage())
+    def handleerror(self, reason):
+        if reason.check(FFMpegError, FFMpegConvertError):
+            log.error('A non recoverable error occurred {err}'.format(err=reason.getErrorMessage()))
+            raise reason.value
+        else:
+            log.error('Error !! {err}'.format(err=reason.getErrorMessage()))
 
     def logsuccess(self, _):
         log.info('{params.inputfile} succesfully converted', params=self.job)
+        return self.status
+
+    def logerrors(self, reason):
+        log.error(reason.getErrorMessage())
+        return reason.getErrorMessage()
 
     def refresh_plex(self, _):
         log.info('Refreshing plex')
         from autoprocess import plex
         plex.refreshPlex(self.settings, 'show')
+        self.status['Plex'] = 'success'
 
     def refresh_sickrage(self, _):
         import urllib
@@ -195,12 +230,15 @@ class RemoteConverter(object):
             for item in refresh:
                 log.debug(refresh[item])
         except (IOError, ValueError):
-            log.exception("Couldn't refresh Sickbeard, check your autoProcess.ini settings.")
+            log.error("Couldn't refresh Sickbeard, check your autoProcess.ini settings.")
 
 
 class BaseJob(object):
     def __init__(self, request):
         self.params = request['params']
+        self.outputfile = ''
+        self.x = ''
+        self.y = ''
 
         try:
             self.inputfile = self.params['inputfile']
@@ -219,6 +257,10 @@ class BaseJob(object):
     def tag(self, output, language='en', artwork=False, thumbnail=False):
         pass
 
+    def getRefresher(self):
+        import Refreshers
+        return Refreshers.GetRefresher(self.settings)
+
 
 class TVJob(BaseJob):
     def __init__(self, request):
@@ -231,20 +273,24 @@ class TVJob(BaseJob):
             log.debug('Received incorrect params')
             raise Exception('Request dict should contain tvdb_id, season number and episode number')
 
-    def tag(self, output, language='en', artwork=False, thumbnail=False):
-
+    def tag_(self, output, language='en', artwork=False, thumbnail=False):
         try:
             from tvdb_mp4 import Tvdb_mp4
             tagmp4 = Tvdb_mp4(self.tvdb_id, self.season, self.episode, self.original,
                               language=language)
-            tagmp4.setHD(output['x'], output['y'])
-            tagmp4.writeTags(output['output'], artwork, thumbnail)
+            if self.x and self.y:
+                tagmp4.setHD(self.x, self.y)
+
+            tagmp4.writeTags(self.output, artwork, thumbnail)
         except:
             log.error('Tagging of {file} failed', file=output)
-            return False
+            raise TagError
+
         log.debug('File {file} tagged successfully', file=output)
         return True
 
+    def tag(self, output, language='en', artwork=False, thumbnail=False):
+        raise TagError
 
 class MovieJob(BaseJob):
     def __init__(self, request):
@@ -259,8 +305,9 @@ class MovieJob(BaseJob):
             from tmdb_mp4 import tmdb_mp4
             tagmp4 = tmdb_mp4(self.imdb_id, original=self.original,
                               language=language)
-            tagmp4.setHD(output['x'], output['y'])
-            tagmp4.writeTags(output['output'], artwork)
+            if self.x and self.y:
+                tagmp4.setHD(self.x, self.y)
+            tagmp4.writeTags(self.outputfile, artwork)
         except:
             log.error('Tagging of {file} failed', output=output)
         log.debug('File {output.output} tagged successfully', output=output)
@@ -293,6 +340,10 @@ class FactoryJob(object):
         #Exception('No such jobtype, accepted types are tvshow, movie, and manual')
 
 
+class TagError(Exception):
+    pass
+
+
 if __name__ == '__main__':
     log = Logger()
     level = LogLevel.debug
@@ -305,7 +356,8 @@ if __name__ == '__main__':
     r = RPCServer()
     xmlrpc.addIntrospection(r)
     port = os.getenv('MP4PORT', 7080)
-    port = int(port) if port.isdigit() else 7080
+    if isinstance(port, basestring) and port.isdigit():
+        port = int(port)
 
     reactor.listenTCP(port, server.Site(r))
     reactor.run()

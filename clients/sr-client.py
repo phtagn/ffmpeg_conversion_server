@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import json
 import sys
+
 import xmlrpclib
 
 """ This client connects to the mp4automator server to submit a conversion job. Note that the file being converted is 
@@ -31,6 +32,7 @@ if len(sys.argv) > 4:
                     'tvdb_id': tvdb_id,
                     'season': season,
                     'episode': episode,
+                    'requester': sickrage
                     }
                }
 

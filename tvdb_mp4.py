@@ -11,7 +11,7 @@ except ImportError:
 import tempfile
 import time
 import logging
-from tvdb_api.tvdb_api import Tvdb
+from tvdb_api_old.tvdb_api import Tvdb
 from mutagen.mp4 import MP4, MP4Cover
 from extensions import valid_output_extensions, valid_poster_extensions
 
