@@ -1,6 +1,6 @@
+import locale
 import os
 import sys
-import locale
 
 try:
     import configparser
@@ -183,7 +183,16 @@ class ReadSettings:
                          'refresh': 'true',
                          'token': ''}
 
-        defaults = {'SickBeard': sb_defaults, 'CouchPotato': cp_defaults, 'Sonarr': sonarr_defaults, 'Radarr': radarr_defaults, 'MP4': mp4_defaults, 'uTorrent': utorrent_defaults, 'SABNZBD': sab_defaults, 'Sickrage': sr_defaults, 'Deluge': deluge_defaults, 'Plex': plex_defaults}
+        defaults = {'SickBeard': sb_defaults,
+                    'CouchPotato': cp_defaults, ''
+                                                'Sonarr': sonarr_defaults,
+                    'Radarr': radarr_defaults,
+                    'MP4': mp4_defaults,
+                    'uTorrent': utorrent_defaults,
+                    'SABNZBD': sab_defaults,
+                    'Sickrage': sr_defaults,
+                    'Deluge': deluge_defaults,
+                    'Plex': plex_defaults}
         write = False  # Will be changed to true if a value is missing from the config file and needs to be written
 
         config = configparser.SafeConfigParser()
@@ -347,7 +356,7 @@ class ReadSettings:
 
         self.vcodec = config.get(section, "video-codec")
         if self.vcodec == '':
-            self.vcodec == ['h264', 'x264']
+            self.vcodec = ['h264', 'x264', 'h265', 'x265']
         else:
             self.vcodec = self.vcodec.lower().replace(' ', '').split(',')
 

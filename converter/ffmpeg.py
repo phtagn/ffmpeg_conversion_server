@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import os.path
+import locale
+import logging
 import os
+import os.path
 import re
 import signal
 from subprocess import Popen, PIPE
-import logging
-import locale
 
 logger = logging.getLogger(__name__)
 
@@ -365,6 +365,51 @@ class FFMpeg(object):
 
         if not os.path.exists(self.ffprobe_path):
             raise FFMpegError("ffprobe binary not found: " + self.ffprobe_path)
+
+        self.hwaccels = []
+
+        self.encoders = {'video': [],
+                         'audio': [],
+                         'subtitle': []}
+        self.decoders = {'video': [],
+                         'audio': [],
+                         'subtitle': []}
+
+        self._getcapabilities()
+
+    def _getcapabilities(self):
+
+        def sortcodec(letter: str):
+            if letter == 'V':
+                return 'video'
+            elif letter == 'A':
+                return 'audio'
+            elif letter == 'S':
+                return 'subtitle'
+            else:
+                return None
+
+        p = self._spawn([self.ffmpeg_path, '-v', 0, '-codecs'])
+        stdout, _ = p.communicate()
+        stdout = stdout.decode(console_encoding, errors='ignore')
+
+        start = False
+        for line in stdout.split('\n'):
+            theline = line.strip()
+            if theline == '-------':
+                start = True
+                continue
+            if start:
+                try:
+                    codectype, codecname, *_ = re.split(r' ', theline)
+                except ValueError:
+                    pass
+                if codectype[1] == 'E':
+                    if sortcodec(codectype[2]):
+                        self.encoders[sortcodec(codectype[2])].append(codecname)
+                if codectype[0] == 'D':
+                    if sortcodec(codectype[2]):
+                        self.decoders[sortcodec(codectype[2])].append(codecname)
 
     @staticmethod
     def _spawn(cmds):

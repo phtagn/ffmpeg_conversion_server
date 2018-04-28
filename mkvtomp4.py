@@ -293,11 +293,14 @@ class MkvtoMp4:
         return ((total_bitrate - audio_bitrate) / 1000) * .95
 
     # Generate a list of options to be passed to FFMPEG based on selected settings and the source file parameters and streams
-    def generateOptions(self, inputfile, original=None):
+    def generateOptions(self, inputfile, original=None, converter=None):
         # Get path information from the input file
         input_dir, filename, input_extension = self.parseFile(inputfile)
 
-        info = Converter(self.FFMPEG_PATH, self.FFPROBE_PATH).probe(inputfile)
+        if converter:
+            info = converter.probe(inputfile)
+        else:
+            info = Converter(self.FFMPEG_PATH, self.FFPROBE_PATH).probe(inputfile)
 
         # Video stream
         self.log.info("Reading video stream.")

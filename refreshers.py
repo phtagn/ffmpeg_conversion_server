@@ -12,16 +12,7 @@ from readSettings import ReadSettings
 
 class RefreshError(Exception):
     def __init__(self, name, url, error):
-        """
-        @param    name: Name of the refresher.
-        @type     name: C{str}
 
-        @param    url: Full url that was used.
-        @type     req: C{str}
-
-        @param    error: Error that was raised.
-        @type     error: C{str}
-        """
         super(RefreshError, self).__init__(error)
 
         self.url = url
@@ -131,7 +122,7 @@ class SickBeard(Refresher):
     defaultport = 8081
 
     def __init__(self, settings):
-        super(SickRage, self).__init__(settings)
+        super(SickBeard, self).__init__(settings)
         self.username = getattr(settings, SickBeard.name)['user']
         self.password = getattr(settings, SickBeard.name)['pass']
 
@@ -183,8 +174,6 @@ class Plex(Refresher):
                     if r.status_code == 200:
                         print("refresh successful")
 
-
-00120
 Refresher.register(Plex)
 
 

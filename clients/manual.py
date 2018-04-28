@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import json
 import sys
+
 import xmlrpclib
 
 """ This client connects to the mp4automator server to submit a conversion job. Note that the file being converted is 
@@ -17,7 +18,7 @@ SERVER_ADDRESS = 'http://www.cholli.org:7080'
 SETTINGS = '/config/manual.ini'
 
 PATHEQUIV = {'/Volumes/Downloads': '/downloads',
-             '/Volumes/video': '/video',
+             '/Volumes/video': '/tv',
              '/Volumes/Films': '/films'}
 
 s = xmlrpclib.Server(SERVER_ADDRESS)

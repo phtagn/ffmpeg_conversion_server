@@ -32,7 +32,7 @@ if len(sys.argv) > 4:
                     'tvdb_id': tvdb_id,
                     'season': season,
                     'episode': episode,
-                    'requester': sickrage
+                    'requester': 'sickrage'
                     }
                }
 

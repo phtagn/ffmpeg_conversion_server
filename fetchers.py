@@ -4,7 +4,6 @@ from abc import abstractmethod, ABCMeta
 
 import requests
 import tmdbsimple as tmdb
-from requests.compat import urljoin
 from tvdb_api import Tvdb
 
 
@@ -19,7 +18,7 @@ class Info(object):
         self.description = ''
         self.ldescription = ''
         self.rating = ''
-        self.artworkpath = ''
+        self.posterurl = ''
 
     def shortendescription(self):
         pass
@@ -42,33 +41,36 @@ class TvInfo(Info):
 
 
 class FetchersFactory(object):
-    Fetchers = []
+    _Fetchers = []
     FetcherInstances = []
 
     @classmethod
     def Register(cls, fetcher):
-        cls.Fetchers.append(fetcher)
+        cls._Fetchers.append(fetcher)
 
     @classmethod
-    def InitFetchers(cls, language='en'):
-        for fetcher in cls.Fetchers:
-            cls.FetcherInstances.append(fetcher(language))
-
-    @classmethod
-    def GetFetcherBySource(cls, source: str, ftype: str):
-        for fetcher in cls.FetcherInstances:
-            if fetcher.source == source and ftype in fetcher.ftype:
-                return fetcher
+    def GetBySource(cls, source: str, language='en'):
+        for fetcher in cls._Fetchers:
+            if fetcher.source == source:
+                return fetcher(language)
         raise Exception('No such Fetcher')
 
     # TODO : make it so it tries fetchers and returns one that works ?
     @classmethod
-    def GetFetcherByType(cls, ftype: str):
-        for fetcher in cls.FetcherInstances:
+    def GetByType(cls, ftype: str, language='en'):
+        for fetcher in cls._Fetchers:
             if fetcher.ftype == ftype:
-                return fetcher
+                return fetcher(language)
         raise Exception('So such fetcher type {ftype}'.format(ftype=ftype))
 
+    @classmethod
+    def GetFromJob(cls, job, language='en'):
+        if job.id_type == 'tvdb':
+            return cls.GetBySource('tvdb', language)
+        if job.id_type == 'tmdb':
+            return cls.GetBySource('tmdb', language)
+        if job.id_type == 'imdb':
+            return cls.GetBySource('tmdb', language)
 
 class Fetcher(object):
     __metaclass__ = ABCMeta
@@ -76,11 +78,10 @@ class Fetcher(object):
     source = ''
 
     @abstractmethod
-    def fetch(self, showinfo):
+    def fetch(self, job):
         pass
 
-    @abstractmethod
-    def getArtwork(self, showinfo):
+    def getArtwork(self):
         pass
 
 
@@ -89,22 +90,27 @@ class Fetcher_tvdb(Fetcher):
     source = 'tvdb'
 
     def __init__(self, language='en'):
-        self.taglanguage = language
+        fetcher = Tvdb()
+        if language in fetcher.config['valid_languages']:
+            self.language = language
+        else:
+            self.language = 'en'
+
         self.fetcher = Tvdb(interactive=False, cache=True, banners=True, actors=True, forceConnect=True,
-                            language=self.taglanguage)
+                            language=self.language)
 
         self.cache = None
 
-    def fetch(self, showinfo):
+    def fetch(self, job):
         info = TvInfo()
-        info.season = showinfo['season']
-        info.episode = showinfo['episode']
+        info.season = job.season
+        info.episode = job.episode
 
         showdata = None
 
         for i in range(3):
             try:
-                showdata = self.fetcher[showinfo['showid']]
+                showdata = self.fetcher[job.id]
                 break
             except Exception as e:
                 print(e)
@@ -138,7 +144,14 @@ class Fetcher_tvdb(Fetcher):
                 if actor['name'] != "" and len(info.cast) < 5:
                     info.cast.append(actor['name'])
 
+            bannerlist = showdata['_banners']['season']['']
+            for bannerid in bannerlist.keys():
+                if str(bannerlist[bannerid]['subKey']) == str(info.season):
+                    info.posterurl = bannerlist[bannerid]['_bannerpath']
+                    break
+
             return info
+
         else:
             raise FetcherException
 
@@ -183,47 +196,96 @@ class Fetcher_tvdb(Fetcher):
 FetchersFactory.Register(Fetcher_tvdb)
 
 
-class Fetcher_tmbd_movies(Fetcher):
-    ftype = 'movies'
+class FetcherTmdb(Fetcher):
+    ftype = ['movies', 'tv']
     source = 'tmdb'
-    api_key = "45e408d2851e968e6e4d0353ce621c66"
+    api_key = '45e408d2851e968e6e4d0353ce621c66'
 
     def __init__(self, language='en'):
+        tmdb.API_KEY = FetcherTmdb.api_key
+        self.config = tmdb.Configuration().info()
         self.language = language
-        self.fetcher = None
 
-    def fetch(self, showinfo):
+        self.definition = 'original'
 
-        info = MovieInfo()
+    def fetch(self, job):
+        search = tmdb.Find(job.id)
 
-        data = None
+        if job.id_type == 'tmdb':
+            return self._fetchMovie(job.id)
 
+        elif job.id_type == 'tvdb':
+            info = search.info(external_source='tvdb_id')
+            if len(info['tv_results']) == 1:
+                return self._fetchTV(info['tv_results'][0]['id'], job.season, job.episode)
+
+        elif job.id_type == 'imdb':
+            info = search.info(external_source='imdb_id')
+            if len(info['movie_results']) == 1:
+                return self._fetchMovie(info['movie_results'][0]['id'])
+
+    def _fetchTV(self, tmdbid, season, episode):
+        # seasondata = None
+        episodedata = None
+        showdata = None
         try:
-            tmdb.API_KEY = Fetcher_tmbd_movies.api_key
-            movie = tmdb.Movies(showinfo['showid'])
-            data = movie.info(language=self.language)
+            fetcher = tmdb.TV_Seasons(tmdbid, season)
+            showdata = tmdb.TV(tmdbid).info(language=self.language)
+            seasondata = tmdb.TV_Seasons(tmdbid, season).info(language=self.language)
+            episodedata = tmdb.TV_Episodes(tmdbid, season, episode).info(language=self.language)
+        except:
+            pass
+
+        if showdata:
+            info = TvInfo()
+            # Show info
+            info.seasons = showdata['number_of_seasons']
+            info.show = showdata['name']
+            for net in showdata['networks']:
+                if net['origin_country'] == showdata['origin_country'][0]:
+                    info.network = net['name']
+                    break
+            info.genre = showdata['genres'][0]['name']
+
+            # Season info
+            info.posterurl = self._getposterpath(fetcher)
+
+            info.episode = episode
+            info.season = season
+            info.title = episodedata['name']
+            info.date = episodedata['air_date']
+            info.ldescription = episodedata['overview']
+            for member in episodedata['crew']:
+                if member['job'] == 'Director':
+                    info.director.append(member['name'])
+                if member['job'] == 'Writer':
+                    info.writers.append(member['name'])
+
+            return info
+
+    def _fetchMovie(self, tmdbid):
+        info = MovieInfo()
+        try:
+            movie = tmdb.Movies(tmdbid)
+            moviedata = movie.info(language=self.language)
 
         except Exception:
             raise FetcherException
 
-        if data:
+        if moviedata:
 
-            if hasattr(movie, 'titles'):
-                for thetitle in movie.titles():
-                    info.title = thetitle
-
-            if not info.title:
-                info.title = movie.title
-
-            info.description = movie.tagline
-            info.ldescription = movie.overview
+            info.title = moviedata['title']
+            info.description = moviedata['tagline']
+            info.ldescription = moviedata['overview']
             info.genre = movie.genres[0]['name']
+            info.posterurl = self._getposterpath(movie)
 
             for thedate in movie.release_dates()['results']:
                 if thedate['iso_3166_1'].lower() == self.language:
                     info.date = thedate['release_dates'][0]['release_date'][:10]
+
             if not info.date:
-                info.date = movie.release_date
+                info.date = moviedata['release_date']
 
             for member in movie.credits()['cast']:
                 info.cast.append(member['name'])
@@ -233,55 +295,36 @@ class Fetcher_tmbd_movies(Fetcher):
             for member in movie.credits()['crew']:
                 if member['job'] == "Director" and len(info.director) < 5:
                     info.director.append(member['name'])
-
+                    continue
                 if member['job'] == 'Producer' and len(info.producer) < 5:
                     info.producer.append(member['name'])
-
-                if member['job'] == 'Author' and len(info.writers) < 5:
+                    continue
+                if member['job'] == 'Writer' or member['job'] == 'Author' and len(info.writers) < 5:
                     info.writers.append(member['name'])
-
+                    continue
             return info
         else:
             raise FetcherException
 
-    def getArtwork(self, showinfo):
-        """Fetches poster, write it to temp directory and returns path to poster file"""
-        config = tmdb.Configuration().info()
-        data = None
-        poster = None
+    def _getposterpath(self, fetcher):
+        images = fetcher.images(language=self.language)
+        if len(images['posters']) == 0:
+            images = fetcher.images()
 
-        try:
-            tmdb.API_KEY = Fetcher_tmbd_movies.api_key
-            movie = tmdb.Movies(showinfo['showid'])
-            data = movie.info(language=self.language)
-            images = movie.images(language=self.language)
-        except:
-            raise ArtworkException
-
-        posters = posterCollection()
-
-        for img in images['posters']:
-            poster = Poster(rating=img['vote_average'], ratingcount=img['vote_count'], bannerpath=img['file_path'])
-            posters.addPoster(poster)
+        if images['posters']:
+            posters = posterCollection()
+            for img in images['posters']:
+                posters.addPoster(
+                    Poster(rating=img['vote_average'], ratingcount=img['vote_count'], bannerpath=img['file_path'])
+                )
 
         poster = posters.topPoster()
-        poster.bannerpath = poster.bannerpath[1:] if poster.bannerpath.startswith('/') else poster.bannerpath
-
-        imageurl = urljoin(config['images']['base_url'], 'w500' + '/' + poster.bannerpath)
-
-        posterfile = os.path.join(tempfile.gettempdir(), poster.bannerpath)
-
-        if data:
-            r = requests.get(imageurl)
-            if r.status_code == 200:
-                with open(posterfile, 'wb') as f:
-                    for chunk in r:
-                        f.write(chunk)
-
-        return posterfile
+        return '{base_url}{definition}{path}'.format(base_url=self.config['images']['base_url'],
+                                                     definition=self.definition,
+                                                     path=poster.bannerpath)
 
 
-FetchersFactory.Register(Fetcher_tmbd_movies)
+FetchersFactory.Register(FetcherTmdb)
 
 
 class FetcherException(Exception):
@@ -321,29 +364,47 @@ class posterCollection:
 
 
 if __name__ == '__main__':
-    Fetchers = FetchersFactory()
-    Fetchers.InitFetchers('en')
+    import jobs
 
-    # print(Fetchers.TVFetchers)
+    tv = {'jobtype': 'tvshow',
+          'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+          'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+          'season': 2,
+          'episode': 2,
+          'id': 176941,
+          'id_type': 'tvdb',
+          'requester': 'sickrage',
+          'settings': '/Users/Jon/Downloads/config/testsettings.ini'
+          }
 
-    showinfo = {
-        'showid': 2501,
+    movie = {
+        'jobtype': 'movie',
+        'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+        'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+        'id': 2501,
+        'id_type': 'tmdb',
+        'requester': 'sickrage',
+        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
     }
 
-    fetcher = Fetchers.GetFetcherBySource('tmdb', 'movies')
-    test = fetcher.fetch(showinfo)
-
-    print(test.title, test.description, test.writers)
-
-    showinfo = {
-        'showid': 176941,
-        'season': 2,
-        'episode': 2
+    movieimdb = {
+        'jobtype': 'movie',
+        'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+        'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+        'id': 'tt5699154',
+        'id_type': 'imdb',
+        'requester': 'sickrage',
+        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
     }
-    fetcher = Fetchers.GetFetcherBySource('tvdb', 'tv')
 
-    test = fetcher.fetch(showinfo)
+    tvjob = jobs.TVJob(tv)
+    moviejob = jobs.MovieJob(movie)
+    imdbjob = jobs.MovieJob(movieimdb)
+    factory = FetchersFactory()
 
-    print(test.title, test.description, test.writers)
+    fetcher1 = factory.GetFromJob(tvjob, 'fr')
+    fetcher2 = factory.GetFromJob(moviejob, 'fr')
+    fetcher3 = factory.GetFromJob(imdbjob, 'fr')
 
-    poster = fetcher.getArtwork(showinfo)
+    toto = fetcher1.fetch(tvjob)
+    print(toto.title, toto.ldescription, toto.writers, toto.posterurl, sep="\n")
