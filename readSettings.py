@@ -419,7 +419,7 @@ class ReadSettings:
             self.pix_fmt = self.pix_fmt.lower().replace(' ', '').split(',')
 
         self.awl = config.get(section, 'audio-language').strip().lower()  # List of acceptable languages for audio streams to be carried over from the original file, separated by a comma. Blank for all
-        self.awl = languagecode.validateLangCode(self.awl.replace(' ', '').split(','))
+        self.awl = languagecode.validate(self.awl.replace(' ', '').split(','))
 
         self.scodec = config.get(section, 'subtitle-codec').strip().lower()
         if not self.scodec or self.scodec == "":
@@ -449,14 +449,16 @@ class ReadSettings:
                 self.scodec = ['srt']
 
         self.swl = config.get(section, 'subtitle-language').strip().lower()  # List of acceptable languages for subtitle streams to be carried over from the original file, separated by a comma. Blank for all
-        self.swl = languagecode.validateLangCode(self.swl.replace(' ', '').split(','))
+        self.swl = languagecode.validate(self.swl.replace(' ', '').split(','))
 
         self.subencoding = config.get(section, 'subtitle-encoding').strip().lower()
         if self.subencoding == '':
             self.subencoding = None
 
-        self.adl = languagecode.validateLangCode(config.get(section, 'audio-default-language'))  # What language to default an undefined audio language tag to. If blank, it will remain undefined. This is useful for single language releases which tend to leave things tagged as und
-        self.sdl = languagecode.validateLangCode(config.get(section, 'subtitle-default-language'))  # What language to default an undefined subtitle language tag to. If blank, it will remain undefined. This is useful for single language releases which tend to leave things tagged as und
+        self.adl = languagecode.validate(config.get(section,
+                                                    'audio-default-language'))  # What language to default an undefined audio language tag to. If blank, it will remain undefined. This is useful for single language releases which tend to leave things tagged as und
+        self.sdl = languagecode.validate(config.get(section,
+                                                    'subtitle-default-language'))  # What language to default an undefined subtitle language tag to. If blank, it will remain undefined. This is useful for single language releases which tend to leave things tagged as und
 
         # Prevent incompatible combination of settings
         if self.output_dir == "" and self.delete is False:

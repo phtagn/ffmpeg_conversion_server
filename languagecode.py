@@ -32,7 +32,7 @@ def getAlpha3TCode(code):  # We need to make sure that language codes are alpha3
     return lang
 
 
-def validateLangCode(code):
+def validate(code):
     """
     :param code: alpha2, alpha3 or alpha3b code or list of codes
     :type code: list or string
@@ -47,7 +47,7 @@ def validateLangCode(code):
             if isinstance(code, basestring):
                 lang = getAlpha3TCode(code)
         else:
-            if isinstance(code, bytes):
+            if isinstance(code, bytes) or isinstance(code, str):
                 lang = getAlpha3TCode(code)
 
     return lang

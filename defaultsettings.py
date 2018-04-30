@@ -33,29 +33,29 @@ mp4_defaults = {
     'ios_move_last': (False, 'bool'),
     'ios_audio_filter': ('', 'strlower'),
     'max_audio_channels': ('', 'int'),
-    'audio_language': ('und', 'strlower'),
+    'audio_languages': ('und', 'list'),
     'audio_default_language': ('und', 'str'),
-    'audio_codec': ('ac3', 'list'),
+    'audio_codecs': ('ac3', 'list'),
     'audio_filter': ('', 'strlower'),
-    'audio_channel_bitrate': (256, 'int'),
+    'audio_bitrate': (256, 'int'),
     'audio_copy_original': (False, 'bool'),
-    'video_codec': ('h264, x264', 'list'),
+    'video_codecs': ('h264, x264', 'list'),
     'preferred_video_codec': ('h264', 'strlower'),
     'video_bitrate': ('', 'float'),
     'video_crf': ('', 'int'),
     'video_max_width': ('', 'int'),
-    'video_profile': ('', 'list'),
+    'video_profiles': ('', 'list'),
     'h264_max_level': ('', 'float'),
     'aac_adtstoasc': (False, 'bool'),
-    'subtitle_codec': ('mov_text', 'list'),
-    'subtitle_language': ('', 'list'),
+    'subtitle_codecs': ('mov_text', 'list'),
+    'subtitle_languages': ('', 'list'),
     'subtitle_default_language': ('', 'strlower'),
-    'subtitle_encoding': ('', 'str'),
+    'subtitle_encoding': ('utf-8', 'str'),
     'convert_mp4': (False, 'bool'),
     'embed_subs': (True, 'bool'),
     'embed_only_internal_subs': (False, 'bool'),
     'post_process': (False, 'bool'),
-    'pix_fmt': ('', 'strlower'),
+    'pix_fmts': ('', 'list'),
     'preopts': ('', 'str'),
     'postopts': ('', 'str')
 }
@@ -174,6 +174,8 @@ tag_defaults = {'tagfile': (True, 'bool'),
                 'download_artwork': ('poster', 'strlower')
                 }
 
+language_defaults = {}
+
 defaults = {
     'FFMPEG': ffmpeg_defaults,
     'MP4': mp4_defaults,
@@ -186,4 +188,10 @@ defaults = {
     'Sonarr': sonarr_defaults,
     'Radarr': radarr_defaults,
     'Plex': plex_defaults,
+}
+
+common_aliases = {
+    'x264': 'h264',
+    'x265': 'hevc',
+    'h265': 'hevc',
 }

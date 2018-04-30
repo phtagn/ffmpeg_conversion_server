@@ -8,6 +8,8 @@ import re
 import signal
 from subprocess import Popen, PIPE
 
+import languagecode
+
 logger = logging.getLogger(__name__)
 
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
@@ -176,7 +178,13 @@ class MediaStreamInfo(object):
         if key.startswith('TAG:'):
             key = key.split('TAG:')[1].lower()
             value = val.lower().strip()
-            self.metadata[key] = value
+            if key == 'language':
+                try:
+                    self.metadata[key] = languagecode.validate(value)
+                except:
+                    self.metadata[key] = value
+            else:
+                self.metadata[key] = value
 
         if self.type == 'audio':
             if key == 'avg_frame_rate':

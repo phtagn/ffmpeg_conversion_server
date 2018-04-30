@@ -35,6 +35,9 @@ class BaseCodec(object):
                     pass
         return safe
 
+    def valid_values(self, opt, value):
+        return True
+
 
 class AudioCodec(BaseCodec):
     """
@@ -50,7 +53,7 @@ class AudioCodec(BaseCodec):
     Supported audio codecs are: null (no audio), copy (copy from
     original), vorbis, aac, mp3, mp2
     """
-
+    codec_type = 'audio'
     encoder_options = {
         'codec': str,
         'language': str,
@@ -139,7 +142,7 @@ class SubtitleCodec(BaseCodec):
 
     Supported subtitle codecs are: null (no subtitle), mov_text
     """
-
+    codec_type = 'subtitle'
     encoder_options = {
         'codec': str,
         'language': str,
@@ -233,7 +236,7 @@ class VideoCodec(BaseCodec):
     from the source), Theora, H.264/AVC, DivX, VP8, H.263, Flv,
     MPEG-1, MPEG-2.
     """
-
+    codec_type = 'video'
     encoder_options = {
         'codec': str,
         'bitrate': int,
@@ -418,7 +421,7 @@ class AudioNullCodec(BaseCodec):
     Null audio codec (no audio).
     """
     codec_name = None
-
+    codec_type = 'audio'
     def parse_options(self, opt, stream=0):
         return ['-an']
 
@@ -429,6 +432,7 @@ class VideoNullCodec(BaseCodec):
     """
 
     codec_name = None
+    codec_type = 'video'
 
     def parse_options(self, opt):
         return ['-vn']
@@ -440,7 +444,7 @@ class SubtitleNullCodec(BaseCodec):
     """
 
     codec_name = None
-
+    codec_type = 'subtitle'
     def parse_options(self, opt, stream=0):
         return ['-sn']
 
@@ -450,6 +454,7 @@ class AudioCopyCodec(BaseCodec):
     Copy audio stream directly from the source.
     """
     codec_name = 'copy'
+    codec_type = 'audio'
     encoder_options = {'language': str,
                        'source': str,
                        'map': int,
@@ -487,6 +492,7 @@ class VideoCopyCodec(BaseCodec):
     Copy video stream directly from the source.
     """
     codec_name = 'copy'
+    codec_type = 'video'
     encoder_options = {'map': int,
                        'source': str}
 
@@ -508,6 +514,7 @@ class SubtitleCopyCodec(BaseCodec):
     Copy subtitle stream directly from the source.
     """
     codec_name = 'copy'
+    codec_type = 'subtitle'
     encoder_options = {'map': int,
                        'source': str}
 
@@ -738,6 +745,12 @@ class H264Codec(VideoCodec):
         return optlist
 
 
+class X264Codec(H264Codec):
+    """
+    Alias for H264
+    """
+    codec_name = 'x264'
+
 class NVEncH264(H264Codec):
     """
     Nvidia H.264/AVC video codec.
@@ -840,6 +853,19 @@ class H265Codec(VideoCodec):
         optlist.extend(['-tag:v', 'hvc1'])
         return optlist
 
+
+class X265Codec(H265Codec):
+    """
+    Alias for H265
+    """
+    codec_name = 'x265'
+
+
+class HEVCCodec(H265Codec):
+    """
+    Alias for H265
+    """
+    codec_name = 'hevc'
 
 class HEVCQSV(H265Codec):
     """
@@ -986,6 +1012,43 @@ class DVDSub(SubtitleCodec):
     codec_name = 'dvdsub'
     ffmpeg_codec_name = 'dvdsub'
 
+
+class CodecManager(object):
+    audio = {}
+    video = {}
+    subtitle = {}
+
+    @classmethod
+    def register(cls, codec):
+        if codec.codec_type == 'audio':
+            cls.audio[codec.codec_name] = codec
+        elif codec.codec_type == 'video':
+            cls.video[codec.codec_name] = codec
+        elif codec.codec_type == 'subtitle':
+            cls.subtitle[codec.codec_name] = codec
+
+    @classmethod
+    def getcodec(cls, name, typ):
+        if typ == 'audio':
+            return cls.audio[name]
+        elif typ == 'video':
+            return cls.video[name]
+        elif typ == 'subtitle':
+            return cls.subtitle[name]
+
+
+video_codec_dict = {}
+audio_codec_dict = {}
+subtitle_codec_dict = {}
+
+for cls in VideoCodec.__subclasses__():
+    video_codec_dict[cls.codec_name] = cls
+
+for cls in AudioCodec.__subclasses__():
+    audio_codec_dict[cls.codec_name] = cls
+
+for cls in SubtitleCodec.__subclasses__():
+    subtitle_codec_dict[cls.codec_name] = cls
 
 audio_codec_list = [
     AudioNullCodec, AudioCopyCodec, VorbisCodec, AacCodec, Mp3Codec, Mp2Codec,

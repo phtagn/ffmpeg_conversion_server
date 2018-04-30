@@ -1,9 +1,9 @@
 import logging
 import os
 import sys
-import uuid
 from logging.config import fileConfig
 
+import containers
 import fetchers
 import settings
 from converter import Converter
@@ -37,23 +37,33 @@ class BaseJob(object):
             self.original = request['original'] if request['original'] else None
             self.id = request['id']
             self.id_type = request['id_type']
-            self.settings = settings.SettingsManager.getsettings(request['settings'])
-            self.targetcontainer = MP4()
+
+
 
         except KeyError:
             raise Exception('Request dict should contain keys: requester, inputfile, original, id, id_type, settings')
 
+        try:
+            self.settings = settings.SettingsManager.getsettings(request['settings'])
+        except:
+            raise Exception(
+                f'Could not load settings {request["settings"]}. Available setttings are {settings.SettingsManager.settings.keys()}')
+
+
+
         if not self.__class__.converter:
-            self.__class__.converter = Converter(self.settings.ffmpeg, self.settings.ffprobe)
+            self.__class__.converter = Converter(self.settings.FFMPEG.ffmpeg, self.settings.FFMPEG.ffprobe)
 
         self.fileinfo = self.__class__.converter.probe(self.fullpath)
 
-        self.outputfile = os.path.join(self.inputdir, f'{self.inputfile}.{self.settings.output_extension}')
-        self.jobid = uuid.uuid4().int
+        self.container = containers.MP4(self.settings.MP4, self.fileinfo, logger=self.log)  # TODO : remove test value
+        self.outputfile = os.path.join(self.inputdir, f'{self.inputfile}.{self.container.extensions[0]}')
         # self.getdimensions()
 
-        self.tags = self.fetchtags().fetch(self)
-        # self.tasks = []
+        # self.tags = self.fetchtags().fetch(self)
+
+        self.preopts = []
+        self.postopts = []
 
     def to_dict(self):
         settings = self.settings.__dict__.copy()
@@ -65,6 +75,14 @@ class BaseJob(object):
             'id': self.id,
             'settings': settings
         }
+
+    def generateoptions(self):
+        options = {'format': self.container.format,
+                   'video': self.container.videooptions,
+                   'audio': self.container.audiooptions,
+                   'subtitle': self.container.subtitleoptions}
+
+        return options
 
     def convert(self):
         conv = self.__class__.converter.convert(self.fullpath,
@@ -154,14 +172,14 @@ class JobException(Exception):
 
 if __name__ == '__main__':
     tv = {'jobtype': 'tvshow',
-          'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-          'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
+          'inputfile': '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv',
+          'original': '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv',
           'season': 2,
           'episode': 2,
           'id': 176941,
           'id_type': 'tvdb',
           'requester': 'sickrage',
-          'settings': '/Users/Jon/Downloads/config/testsettings.ini'
+          'settings': 'default'
           }
 
     movie = {
@@ -171,9 +189,9 @@ if __name__ == '__main__':
         'id': 2501,
         'id_type': 'tmdb',
         'requester': 'sickrage',
-        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
+        'settings': 'defaults'
     }
-
+    #/Users/Jon/Downloads/config/defaults.ini
     movieimdb = {
         'jobtype': 'movie',
         'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
@@ -181,7 +199,7 @@ if __name__ == '__main__':
         'id': 'tt5699154',
         'id_type': 'imdb',
         'requester': 'sickrage',
-        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
+        'settings': 'defaults'
     }
 
     tvjob = TVJob(tv)

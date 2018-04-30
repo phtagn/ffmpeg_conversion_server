@@ -362,7 +362,7 @@ class MkvtoMp4:
         overrideLang = True
         for a in info.audio:
             try:
-                a.metadata['language'] = languagecode.validateLangCode(a.metadata['language'])
+                a.metadata['language'] = languagecode.validate(a.metadata['language'])
             except KeyError:
                 a.metadata['language'] = 'und'
 
@@ -379,7 +379,7 @@ class MkvtoMp4:
         l = 0
         for a in info.audio:
             try:
-                a.metadata['language'] = languagecode.validateLangCode(a.metadata['language'])
+                a.metadata['language'] = languagecode.validate(a.metadata['language'])
             except KeyError:
                 a.metadata['language'] = 'und'
 
@@ -508,7 +508,7 @@ class MkvtoMp4:
         self.log.info("Reading subtitle streams.")
         for s in info.subtitle:
             try:
-                s.metadata['language'] = languagecode.validateLangCode(s.metadata['language'])
+                s.metadata['language'] = languagecode.validate(s.metadata['language'])
             except KeyError:
                 s.metadata['language'] = 'und'
 
