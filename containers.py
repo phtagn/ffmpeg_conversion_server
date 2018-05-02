@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from logging.config import fileConfig
+from typing import Union, Dict, List
 
 import languagecode
 from converter.avcodecs import audio_codec_dict, video_codec_dict, subtitle_codec_dict
@@ -58,15 +59,15 @@ class GenericContainer(object):
         self.subtitleoptions = self.generatesubtitleoptions()
 
     @abc.abstractmethod
-    def generateaudiooptions(self):
+    def generateaudiooptions(self) -> Dict[str, Union[str, int]]:
         pass
 
     @abc.abstractmethod
-    def generatevideooptions(self):
+    def generatevideooptions(self) -> Dict[str, Union[str, int]]:
         pass
 
     @abc.abstractmethod
-    def generatesubtitleoptions(self, subtitles=[]):
+    def generatesubtitleoptions(self, subtitles: List[str] = []) -> Dict[str, Union[str, int]]:
         pass
 
     def generatepreopts(self):
@@ -95,13 +96,13 @@ class GenericContainer(object):
         return options
 
     def estimateVideoBitrate(self):
-        total_bitrate = self.fileinfo.format.bitrate
+        total_bitrate = self.mediainfo.format.bitrate
         audio_bitrate = 0
 
-        for a in self.fileinfo.audio:
+        for a in self.mediainfo.audio:
             audio_bitrate += a.bitrate
 
-        self.log.debug("Total bitrate is %s." % self.fileinfo.format.bitrate)
+        self.log.debug("Total bitrate is %s." % self.mediainfo.format.bitrate)
         self.log.debug("Total audio bitrate is %s." % audio_bitrate)
         self.log.debug("Estimated video bitrate is %s." % (total_bitrate - audio_bitrate))
         return ((total_bitrate - audio_bitrate) / 1000) * .95

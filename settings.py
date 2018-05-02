@@ -10,8 +10,20 @@ class Setting(object):
     pass
 
 
+
 class SettingsManager(object):
     settings = {}
+
+    @classmethod
+    def _sanitize(cls, settings: Setting) -> Setting:
+        # TODO : Check that settings that should be strings really are not lists
+        # TODO : Check that audio languages conform to ISO standard
+        # TODO : Substitute common aliases for codecs to get a clean list
+        # In order to do that we need to cycle through the configuration sections. Find a way to do that.
+        # Ideally, check that the setting is supported by ffmpeg
+        # TODO : language should be its own section and should then be added to container settings
+
+        pass
 
     @classmethod
     def FromFile(cls, settingsfile, name):
@@ -22,8 +34,8 @@ class SettingsManager(object):
         config = configparser.ConfigParser(converters={
             'list': lambda option: list(
                 set(map(str.lower, option.strip().replace(" ", '').split(',')))) if option else [],
-            'strlower': lambda option: option.lower(),
-            'str': lambda option: option.strip(),
+            'strlower': lambda option: option.lower() if option else None,
+            'str': lambda option: option if option else None,
             'tryint': lambda option: int(option) if option.isnumeric() else 0,
             'tryfloat': lambda option: float(option) if option.isnumeric() else 0.0
         })
@@ -38,7 +50,7 @@ class SettingsManager(object):
                 optionfb = defaults[section][option][0]
                 subsetting = getattr(settings, section)
                 if optiontype == 'str':
-                    setattr(subsetting, option, config.get(section, option, fallback=optionfb))
+                    setattr(subsetting, option, config.getstr(section, option, fallback=optionfb))
                     continue
                 elif optiontype == 'strlower':
                     setattr(subsetting, option, config.getstrlower(section, option, fallback=optionfb))
@@ -59,7 +71,7 @@ class SettingsManager(object):
                     raise Exception('Unsupported option type')
 
         cls.settings[name] = settings
-
+        # TODO : Should we return separate settings objects for the different sections through a dict ?
         return settings
 
     def fromdict(self, request):  # TODO : implement
@@ -69,7 +81,7 @@ class SettingsManager(object):
         pass
 
     @classmethod
-    def getsettings(cls, name):
+    def getsettings(cls, name: str) -> Setting:
         return cls.settings[name]
 
 
@@ -91,7 +103,7 @@ def writedefaults(path: str):
 
 
 SM = SettingsManager()
-SM.FromFile('/Users/Jon/Downloads/in/defaults.ini', 'default')
+SM.FromFile('/Users/Jon/Downloads/in/defaults.ini', 'defaults')
 
 if __name__ == '__main__':
     path = '/Users/Jon/Downloads/in/'

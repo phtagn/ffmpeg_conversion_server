@@ -7,6 +7,7 @@ import os.path
 import re
 import signal
 from subprocess import Popen, PIPE
+from typing import NewType
 
 import languagecode
 
@@ -647,3 +648,6 @@ class FFMpeg(object):
         stderr_data.decode(console_encoding)
         if any(not os.path.exists(option[1]) for option in option_list):
             raise FFMpegError('Error creating thumbnail: %s' % stderr_data)
+
+
+Mediainfo = NewType('MediaInfo', MediaInfo)

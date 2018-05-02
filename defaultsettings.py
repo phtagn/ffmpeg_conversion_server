@@ -5,8 +5,8 @@ Settings contain their type to help configparser parse the file correctly
 """
 
 ffmpeg_defaults = {
-    'ffmpeg': ('ffmpeg.exe', 'str'),
-    'ffprobe': ('ffprobe.exe', 'str'),
+    'ffmpeg': ('/usr/local/bin/ffmpeg', 'str'),
+    'ffprobe': ('/usr/local/bin/ffprobe', 'str'),
     'threads': ('auto', 'strlower'),
     'use_qsv_decoder_with_encoder': (True, 'bool'),
     'use_hevc_qsv_decoder': (False, 'bool'),
@@ -189,6 +189,8 @@ defaults = {
     'Radarr': radarr_defaults,
     'Plex': plex_defaults,
 }
+
+testy = {'General': {'FFMPEG': ffmpeg_defaults, 'MP4': mp4_defaults}}
 
 common_aliases = {
     'x264': 'h264',
