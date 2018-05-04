@@ -1,5 +1,4 @@
 # coding=utf-8
-import abc
 import logging
 import os
 import sys
@@ -7,14 +6,13 @@ from logging.config import fileConfig
 from typing import List
 
 import languagecode
-import settings
 from converter.avcodecs import *
-from converter.ffmpeg import MediaInfo, MediaStreamInfo
+from converter.ffmpeg import MediaInfo
 
 
 class FFMPEGAdapter(object):
 
-    def __init__(self, params: Union[str, settings.Setting], mediainfo: MediaInfo, logger: logging.Logger = None):
+    def __init__(self, settings, mediainfo: MediaInfo, logger: logging.Logger = None):
         if logger:
             self.log = logger
         else:
@@ -22,8 +20,7 @@ class FFMPEGAdapter(object):
                        defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'server.log')})
             self.log = logging.getLogger(__name__)
 
-        self.container = ''
-        self.settings = settings.SettingsManager.getsettings(params).MP4
+        self.settings = settings.SettingsManager.getsettings('defaults')
         self.mediainfo = mediainfo
 
     def selectlanguage(self, streams: list):
@@ -43,7 +40,8 @@ class FFMPEGAdapter(object):
                 except KeyError:
                     s.metadata['language'] = 'und'
                 if s.metadata['language'] in self.settings.audio_languages or (
-                        self.settings.audio_languages[0] == 'und' and self.settings.audio_default_language == 'und'):
+                        self.settings.audio_languages[
+                            0] == 'und' and self.settings.audio_default_language == 'und'):
                     output.append(s)
 
         if not output:
@@ -70,9 +68,11 @@ class FFMPEGAdapter(object):
         """
         pass
 
-    def generateVoptions(self) -> Dict[str, BaseCodec]:
+    def generateVoptions(self, stream) -> Dict[str, BaseCodec]:
         self.log.info("Reading video stream.")
         self.log.info("Video codec detected: %s." % self.mediainfo.video.codec)
+        preferredcodec = self.settings[self.container.name]
+        videosettings = self.settings['Codecs']['Video']
 
         info = self.mediainfo.video
         vbr = self.estimateVideoBitrate()
@@ -327,77 +327,11 @@ class FFMPEGAdapter(object):
         return options
 
 
-class GenericContainer(object):
-    __metaclass__ = abc.ABCMeta
-
-    sup_video_codecs = []  # Type: list
-    sup_audio_codecs = []  # Type : list
-    sup_sub_codecs = []  # Type: list
-    extensions = []  # Type: list
-    format = ''  # Type: str
-    badcodecs = []  # Type: list
-
-    def __init__(self, settings: settings.Setting) -> None:
-        self.videocodecs = settings.video_codecs
-        self.audiocodecs = settings.audio_codecs
-        self.subtitlecodecs = settings.subtitle_codecs
-
-    @abc.abstractmethod
-    def selecttracks(self, mediainfo: MediaInfo) -> List[MediaInfo]:
-        pass
-
-    @abc.abstractmethod
-    def parse_options(self):
-        pass
-
-    @abc.abstractmethod
-    def addstream(self, stream: MediaStreamInfo) -> bool:
-        pass
 
 
-class MP4(GenericContainer):
-    extensions = ['mp4', 'm4v']
-    videocodecs = [VideoCopyCodec, H264Codec, H264QSV, NVEncH264, H265Codec, NVEncH265]
-    audiocodecs = [AacCodec, FdkAacCodec, Ac3Codec]
-    subtitlecodecs = [SubtitleCopyCodec, MOVTextCodec]
-    badcodecs = ['truehd']
-    format = 'mp4'
-    name = 'mp4'
-
-    def __init__(self, params, mediainfo, logger=None):
-        """Handles initial loading of settings from settings manager as well as settings validation
-        comparing them to both what's allowed in the container and the codec supported by the program"""
-        self.streams = []
-        self.settings = params
-        self.mediainfo = mediainfo
-        super(MP4, self).__init__(params, mediainfo, logger)
-
-    def addstream(self, stream: MediaStreamInfo) -> bool:
-        """
-        Adds the template for a stream to a container
-        """
-
-    def parse_options(self):
-        pass
 
 
-class MKV(GenericContainer):
-    name = 'mkv'
 
-    def generatevideooptions(self):
-        pass
-
-    def generateaudiooptions(self):
-        pass
-
-    def generatesubtitleoptions(self):
-        pass
-
-
-# Containers = {}
-
-# for cls in GenericContainer.__subclasses__():
-#    Containers[cls.name] = cls
 
 if __name__ == '__main__':
     import converter
