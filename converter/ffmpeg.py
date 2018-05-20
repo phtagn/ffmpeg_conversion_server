@@ -12,7 +12,7 @@ from typing import NewType
 import languagecode
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.DEBUG)
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
 
 
@@ -131,6 +131,7 @@ class MediaStreamInfo(object):
         self.sub_forced = None
         self.sub_default = None
         self.metadata = {}
+        self.disposition = None
 
     @staticmethod
     def parse_float(val, default=0.0):
@@ -154,11 +155,11 @@ class MediaStreamInfo(object):
         if key == 'index':
             self.index = self.parse_int(val)
         elif key == 'codec_type':
-            self.type = val
+            self.type = val.lower()
         elif key == 'codec_name':
-            self.codec = val
+            self.codec = val.lower()
         elif key == 'codec_long_name':
-            self.codec_desc = val
+            self.codec_desc = val.lower()
         elif key == 'duration':
             self.duration = self.parse_float(val)
         elif key == 'bit_rate':
@@ -173,8 +174,10 @@ class MediaStreamInfo(object):
             self.audio_samplerate = self.parse_float(val)
         elif key == 'DISPOSITION:attached_pic':
             self.attached_pic = self.parse_int(val)
+        elif key == 'DISPOSITION:default':
+            self.disposition = self.parse_int(val)
         elif key == 'profile':
-            self.profile = val
+            self.profile = val.lower()
 
         if key.startswith('TAG:'):
             key = key.split('TAG:')[1].lower()
@@ -430,6 +433,7 @@ class FFMpeg(object):
         except:
             logger.exception("There was an error making all command line parameters a string")
         logger.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
+        print(' '.join(cmds))
         return Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                      close_fds=(os.name != 'nt'), startupinfo=None)
 

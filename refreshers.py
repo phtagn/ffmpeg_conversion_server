@@ -9,6 +9,7 @@ import requests
 
 from readSettings import ReadSettings
 
+log = logging.getLogger(__name__)
 
 class RefreshError(Exception):
     def __init__(self, name, url, error):
@@ -27,58 +28,26 @@ class RefreshError(Exception):
         return self.__repr__()
 
 
-def GetRefresher(name, settings):
-    if name == 'sickrage':
-        return SickRage(settings)
-    if name == 'sonarr':
-        pass
-    if name == 'radar':
-        pass
-    if name == 'sickbeard':
-        return SickRage(settings)
-    if name == 'couchpotato':
-        pass
-    if name == 'plex':
-        return Plex(settings)
+class RefresherFactory(object):
+    Refreshers = {}
+
+
+    @classmethod
+    def register(cls, refresher):
+        cls.Refreshers = {refresher.name: refresher}
+
+    @classmethod
+    def GetRefresher(cls, name, cfg):
+        return cls.Refreshers[name](cfg['Refreshers'][name])
 
 
 class Refresher(object):
     __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def __init__(self, settings, logger=None):
-        """Import settings common to all refreshers"""
-        assert isinstance(settings, ReadSettings)
-
-        if logger:
-            self.log = logger
-        else:
-            self.log = logging.getLogger(__name__)
-
-        self.protocol = 'http://'
-        self.host = getattr(settings, self.__class__.name).get('host', 'localhost')
-        self.port = getattr(settings, self.__class__.name).get('port', self.__class__.defaultport)
-
-        if getattr(settings, self.__class__.name).get('ssl', False):
-            self.protocol = 'https://'
-
-        self.web_root = getattr(settings, self.__class__.name).get('web_root', "")
-
-        if not self.web_root.startswith("/"):
-            self.web_root = "/" + self.web_root
-        if not self.web_root.endswith("/"):
-            self.web_root = self.web_root + "/"
-
-        # Readsettings sometimes references apikey with an underscore
-        try:
-            self.apikey = getattr(settings, self.__class__.name)["api_key"]
-        except KeyError:
-            pass
-
-        try:
-            self.apikey = getattr(settings, self.__class__.name)["apikey"]
-        except KeyError:
-            pass
+    name = ''
+    defaults = {'host': 'string(default=localhost)',
+                'ssl': 'boolean(default=False',
+                'webroot': 'string(default=None)',
+                'refresh': 'boolean(default=False)'}
 
     @abstractmethod
     def refresh(self, param):
@@ -88,13 +57,36 @@ class Refresher(object):
 class SickRage(Refresher):
     name = 'Sickrage'
     defaultport = '8081'
+    defaults = Refresher.defaults.copy()
+    defaults.update({'port': 'integer(default=8081)',
+                     'username': 'string(default=None)',
+                     'password': 'string(default=None)',
+                     'api_key': 'string(default=None)'
+                     })
 
-    def __init__(self, settings):
-        super(SickRage, self).__init__(settings)
-        self.username = getattr(settings, SickRage.name)['user']
-        self.password = getattr(settings, SickRage.name)['pass']
+    def __init__(self, cfg):
+        conf = cfg['Refreshers'][SickRage.name]
+        self.host = conf.get('host')
+        if conf.get('ssl'):
+            self.protocol = 'https://'
+        else:
+            self.protocol = 'http://'
+        self.port = cfg.get('port')
+        self.username = cfg.get('username')
+        self.password = cfg.get('password')
 
-    def refresh(self, param):
+        if not cfg.get('webroot'):
+            self.webroot = '/'
+        elif cfg.get('webroot').endswith('/'):
+            self.webroot = cfg.get('webroot')
+        else:
+            self.webroot = f'{cfg.get("webroot")}/'
+
+
+        self.url = f'{self.protocol}{self.host}:{self.port}/{self.webroot}{self.api_key}'
+
+
+    def refresh(self):
         if not self.apikey:
             raise RefreshError('Sickrage', '', 'Sickrage api key not defined')
 
