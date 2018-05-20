@@ -1,4 +1,3 @@
-from configuration import ConfigManager
 from flask import Flask
 from flask import request
 import json
