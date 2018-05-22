@@ -65,7 +65,6 @@ class cfgmgr(object):
             if usersettings:
                 self._usercfg = usersettings
                 r = self._usercfg.validate(self._validator, preserve_errors=True)
-                print(self._usercfg['Codecs']['video']['h264'].get('width'))
 
                 if isinstance(r, dict):
                     for entry in flatten_errors(self._usercfg, r):
@@ -76,7 +75,7 @@ class cfgmgr(object):
                     raise ConfigException(output)
 
                 self._usercfg.walk(self.properNone)
-                print('toto')
+
         else:
             raise IOError(f'Could not find config file {inifile}')
 
@@ -109,3 +108,7 @@ class ConfigException(Exception):
 if __name__ == '__main__':
     cm = cfgmgr()
     cm.savedefaults()
+    cm.load('defaults.ini')
+    toto = cm.cfg['Tagging'].get('tagfile')
+    titi = cm.cfg['Tagging'].get('tagfil')
+    print(titi)

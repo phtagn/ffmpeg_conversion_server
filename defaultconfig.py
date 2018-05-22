@@ -1,5 +1,6 @@
 # coding=utf-8
-from containers import ContainerFactory
+from containers2 import ContainerFactory
+from converter.streamformats import StreamFormatFactory
 from converter.avcodecs import CodecFactory
 from configobj import ConfigObj
 
@@ -11,6 +12,7 @@ codecsettings = {'video': {cdc.codec_name: cdc.defaults for cdc in CodecFactory.
                  'subtitle': {cdc.codec_name: cdc.defaults for cdc in CodecFactory.codecs['subtitle'].values()}
                  }
 
+formatsettings = {fmt.name: fmt.format_options for fmt in StreamFormatFactory.formats.values()}
 
 defaultconfig = {
     'FFMPEG': {
@@ -21,22 +23,16 @@ defaultconfig = {
 
     'Languages': {
         'audio': 'force_list(default=list(eng))',
-        'subtitle': 'force_list(default=list(eng))'
+        'subtitle': 'force_list(default=list(eng))',
+        'tagging': 'string(default=eng)'
     },
 
     'Tagging': {
         'tagfile': 'boolean(default=True)',
         'preferred_show_tagger': 'string(default=tmdb)',
         'preferred_movie_tagger': 'string(default=tmdb)',
-        'tag_language': 'string(default=en)',
         'download_artwork': 'boolean(default=False)'
     },
-
-#    'Subtitles': {
-#        'download': False,
-#        'providers': ['addic7ed', 'podnapisi', 'thesubdb', 'opensubtitles'],
-#        'fullpathguess': True
-#    },
 
     'File': {
         'output_directory': 'string(default=None)',
@@ -44,11 +40,10 @@ defaultconfig = {
         'move_to': 'string(default=None)',
         'delete_original': 'boolean(default=False)',
         'permissions': 'integer(default=777)'
-    }}
-
-defaultconfig['Containers'] = containersettings
-defaultconfig['Codecs'] = codecsettings
-
+    },
+    'Containers': containersettings,
+    'StreamFormats': formatsettings
+}
 
 configspec = ConfigObj(defaultconfig, list_values=False)
 
