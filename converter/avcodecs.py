@@ -1188,7 +1188,12 @@ class CodecFactory(object):
 
     @classmethod
     def getvideo(cls, codec: str, cfg):
-        return cls.codecs['video'][codec](cfg['video'][codec])
+        if codec == 'copy':
+            return cls.codecs['video']['copy']
+        elif codec == 'null':
+            return cls.codecs['video']['null']
+        else:
+            return cls.codecs['video'][codec](cfg['video'][codec])
 
     @classmethod
     def getaudio(cls, codec: str, cfg):

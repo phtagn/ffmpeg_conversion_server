@@ -1,5 +1,5 @@
 from converter import avcodecs
-
+from typing import Dict
 
 class BaseStreamFormat(object):
     encoders = {}
@@ -17,7 +17,15 @@ class BaseStreamFormat(object):
         return self._encoder
 
     @classmethod
-    def getEncoder(cls, encoderoptions, encoder=None):
+    def getEncoder(cls, encoderoptions: Dict, encoder: str = None):
+        """
+        Returns an encoder from avcodecs. The encoder is instantiated with encoderoptions.
+        If encoderoptions are invalid, they are disregaarded by the encoder.
+        If encoder is not specified, returns the default encoder instantiated with encoderoptions.
+        :param encoderoptions: Dict of options to pass the encoder
+        :param encoder: str, name of the encoder
+        :return: avcodecs.codec
+        """
         if not encoder:
             return cls.encoders[cls.default_encoder](encoderoptions)
         elif encoder in cls.encoders:
