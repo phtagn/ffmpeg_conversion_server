@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import os
-from converter.avcodecs import video_codec_list, audio_codec_list, subtitle_codec_list
+from converter.encoders import video_codec_list, audio_codec_list, subtitle_codec_list
 from converter.formats import format_list
 from converter.ffmpeg import FFMpeg, FFMpegError, FFMpegConvertError
 
@@ -171,9 +171,9 @@ class Converter(object):
             * format (mandatory, string) - container format; see
               formats.BaseFormat for list of supported formats
             * audio (optional, dict) - audio codec and options; see
-              avcodecs.AudioCodec for list of supported options
+              avcodecs.AudioEncoder for list of supported options
             * video (optional, dict) - video codec and options; see
-              avcodecs.VideoCodec for list of supported options
+              avcodecs.VideoEncoder for list of supported options
             * map (optional, int) - can be used to map all content of stream 0
 
         Multiple audio/video streams are not supported. The output has to

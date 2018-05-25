@@ -38,12 +38,12 @@ The default configuration file is split into different sections:
 
 [FFMPEG] Sets the details for ffmpeg
 - `ffmpeg` : the path to ffmpeg binary
-- ``fprobe``: the path to ffprobe binary
-- ``threads``: either auto or the number of threads you wish ffmpeg to use. Note that not all encoders support multi-threading.
+- `fprobe`: the path to ffprobe binary
+- `threads`: either auto or the number of threads you wish ffmpeg to use. Note that not all encoders support multi-threading.
 
 [Languages] Setttings for the languages you want in the file:
 - `audio`: a comma separated list of 3-letter language code. Those are all the languages that are acceptable to you. Any audio track whose language does not match will be disregarded.
-- ``subtitle``: same for subtitles
+- `subtitle`: same for subtitles
 
 [Tagging] Settings for tagging. *At the moment tagging is only supported for MP4.*
 - `tagfile`: `True` or `False` whether you want the file to be tagged
@@ -56,7 +56,13 @@ The default configuration file is split into different sections:
 - `prefer_method`: Applies to video stream only. Valid values are `copy`, `transcode`, and `override`.
     - Copy will copy the video stream everytime if the codec of the video stream is in the `video_codecs` list
     - Transcode will transcode the video stream everytime, using the codec provided in `transcode_with`
-    - Override will look at the settings for the codec in `transcode_with` and transcode if necessary. for example, if the source video stream has a bitrate of 2000k the `bitrate` for the codec mentionned in `transcode_with` is only 1500, transcoding will occur. If the `bitrate` for the `transcode_with` codec is 2500, then the stream will be copied.
+    - Override is a little more complicated and designed to be versatile. Override will first look at whether the codec
+    is listed in the accepted codecs. If it is, it will check that the format conforms with the options as set out in the
+    appropriate subsection of the StreamFormat section. 
+    
+    The difference with copy is that copy only matches the format (i.e. if the format of the video track is h264 and h264 is listed in accepted_formats then copying will occur. If not transcoding will. 
+    If override is selected the, the program will also check e.g. that the video bitrate is below the video bitrate accepted for the codec.
+    The reason why this is not folded into copy is that you may want a max bitrate of 2000k for h264 and 1500 for h265.    
 - `video_codecs`: A *list* of the video codecs that are acceptable to be included in the output file. If the codec of the source file is not included in this list, then transcoding will occur using the `transcode_with`codec.
 - `transcode_with`: the codec with which you want to transcode. All supported codecs are listed in the [Codecs] section.
 - `audio_codecs`: A *list* of the audio codecs that can be included in the output file. Those codecs will be copied (provided the language matches).

@@ -2,7 +2,7 @@
 from typing import Dict, Union
 
 
-class BaseCodec(object):
+class BaseEncoder(object):
     """
     Base audio/video codec class.
     """
@@ -38,7 +38,7 @@ class BaseCodec(object):
                         pass
 
 
-class AudioCodec(BaseCodec):
+class AudioEncoder(BaseEncoder):
     """
     Base audio codec class handles general audio options. Possible
     parameters are:
@@ -53,6 +53,7 @@ class AudioCodec(BaseCodec):
     original), vorbis, aac, mp3, mp2
     """
     codec_type = 'audio'
+
     encoder_options = {
         'codec': str,
         'language': str,
@@ -67,13 +68,10 @@ class AudioCodec(BaseCodec):
     }
 
     defaults = {
-        'channels': 'integer(default=2)',
-        'bitrate': 'integer(default=200)',
-        'filter': 'string(default=None)'
     }
 
     def parse_options(self, stream=0):
-        # super(AudioCodec, self).parse_options(opt)
+        # super(AudioEncoder, self).parse_options(opt)
         # safe = self.safe_options(opt)
         safe = self.safeopts
         stream = str(stream)
@@ -137,7 +135,7 @@ class AudioCodec(BaseCodec):
         return optlist
 
 
-class SubtitleCodec(BaseCodec):
+class SubtitleEncoder(BaseEncoder):
     """
     Base subtitle codec class handles general subtitle options. Possible
     parameters are:
@@ -160,10 +158,10 @@ class SubtitleCodec(BaseCodec):
         'encoding': str
     }
 
-    defaults = {'encoding': 'string(default=UTF-8)'}
+    defaults = {}
 
     def parse_options(self, stream=0):
-        #super(SubtitleCodec, self).parse_options(opt)
+        # super(SubtitleEncoder, self).parse_options(opt)
         stream = str(stream)
         safe = self.safeopts
 
@@ -216,7 +214,7 @@ class SubtitleCodec(BaseCodec):
         return optlist
 
 
-class VideoCodec(BaseCodec):
+class VideoEncoder(BaseEncoder):
     """
     Base video codec class handles general video options. Possible
     parameters are:
@@ -259,14 +257,8 @@ class VideoCodec(BaseCodec):
         'pix_fmt': str,
         'map': int
     }
-    #        'width': 'integer(default=1280)',
-    #        'height': 'integer(default=720)',
-    defaults = {
-        'bitrate': 'integer(default=1500)',
-        'filter': 'string(default=None)',
-        'pix_fmt': 'string(default=None)',
-        'mode': 'string(default=None)'
-    }
+
+    defaults = {}
 
     def _aspect_corrections(self, sw, sh, w, h, mode):
         # If we don't have source info, we don't try to calculate
@@ -327,7 +319,7 @@ class VideoCodec(BaseCodec):
         assert False, mode
 
     def parse_options(self, stream=0):
-        super(VideoCodec, self).parse_options()
+        super(VideoEncoder, self).parse_options()
         stream = str(stream)
         safe = self.safeopts
 
@@ -438,7 +430,7 @@ class VideoCodec(BaseCodec):
         return optlist
 
 
-class AudioNullCodec(BaseCodec):
+class AudioNullEncoder(BaseEncoder):
     """
     Null audio codec (no audio).
     """
@@ -449,7 +441,7 @@ class AudioNullCodec(BaseCodec):
         return ['-an']
 
 
-class VideoNullCodec(BaseCodec):
+class VideoNullEncoder(BaseEncoder):
     """
     Null video codec (no video).
     """
@@ -461,7 +453,7 @@ class VideoNullCodec(BaseCodec):
         return ['-vn']
 
 
-class SubtitleNullCodec(BaseCodec):
+class SubtitleNullEncoder(BaseEncoder):
     """
     Null subtitle codec (no subtitle)
     """
@@ -473,7 +465,7 @@ class SubtitleNullCodec(BaseCodec):
         return ['-sn']
 
 
-class AudioCopyCodec(BaseCodec):
+class AudioCopyEncoder(BaseEncoder):
     """
     Copy audio stream directly from the source.
     """
@@ -486,10 +478,9 @@ class AudioCopyCodec(BaseCodec):
                        'disposition': str}
 
     def __init__(self, opts) -> None:
-        super(AudioCopyCodec, self).__init__(opts)
+        super(AudioCopyEncoder, self).__init__(opts)
 
     def parse_options(self, stream=0):
-        #        safe = self.safe_options(opt)
         safe = self.safeopts
         stream = str(stream)
         optlist = []
@@ -515,13 +506,13 @@ class AudioCopyCodec(BaseCodec):
         return optlist
 
 
-class VideoCopyCodec(BaseCodec):
+class VideoCopyEncoder(BaseEncoder):
     """
     Copy video stream directly from the source.
     """
 
     def __init__(self, opts) -> None:
-        super(VideoCopyCodec, self).__init__(opts)
+        super(VideoCopyEncoder, self).__init__(opts)
 
     codec_name = 'copy'
     codec_type = 'video'
@@ -542,7 +533,7 @@ class VideoCopyCodec(BaseCodec):
         return optlist
 
 
-class SubtitleCopyCodec(BaseCodec):
+class SubtitleCopyEncoder(BaseEncoder):
     """
     Copy subtitle stream directly from the source.
     """
@@ -552,7 +543,7 @@ class SubtitleCopyCodec(BaseCodec):
                        'source': str}
 
     def __init__(self, opts) -> None:
-        super(SubtitleCopyCodec, self).__init__(opts)
+        super(SubtitleCopyEncoder, self).__init__(opts)
 
     def parse_options(self, stream=0):
         optlist = []
@@ -570,7 +561,7 @@ class SubtitleCopyCodec(BaseCodec):
 
 
 # Audio Codecs
-class VorbisCodec(AudioCodec):
+class VorbisCodec(AudioEncoder):
     """
     Vorbis audio codec.
     """
@@ -580,12 +571,12 @@ class VorbisCodec(AudioCodec):
 
     codec_name = 'vorbis'
     ffmpeg_codec_name = 'libvorbis'
-    encoder_options = AudioCodec.encoder_options.copy()
+    encoder_options = AudioEncoder.encoder_options.copy()
     encoder_options.update({
         'quality': int,  # audio quality. Range is 0-10(highest quality)
         # 3-6 is a good range to try. Default is 3
     })
-    defaults = AudioCodec.defaults.copy()
+    defaults = AudioEncoder.defaults.copy()
     defaults.update({'quality': 'integer(default=3)'})
 
     def _codec_specific_produce_ffmpeg_list(self, safe, stream=0):
@@ -596,7 +587,7 @@ class VorbisCodec(AudioCodec):
         return optlist
 
 
-class AacCodec(AudioCodec):
+class AacCodec(AudioEncoder):
     """
     AAC audio codec.
     """
@@ -614,7 +605,7 @@ class AacCodec(AudioCodec):
         return super(AacCodec, self).parse_options(stream)
 
 
-class FdkAacCodec(AudioCodec):
+class FdkAacCodec(AudioEncoder):
     """
     AAC audio codec.
     """
@@ -632,7 +623,7 @@ class FdkAacCodec(AudioCodec):
         return super(FdkAacCodec, self).parse_options(stream)
 
 
-class FAacCodec(AudioCodec):
+class FAacCodec(AudioEncoder):
     """
     AAC audio codec.
     """
@@ -650,7 +641,7 @@ class FAacCodec(AudioCodec):
         return super(FAacCodec, self).parse_options(stream)
 
 
-class Ac3Codec(AudioCodec):
+class Ac3Codec(AudioEncoder):
     """
     AC3 audio codec.
     """
@@ -667,7 +658,8 @@ class Ac3Codec(AudioCodec):
                 self.safeopts['channels'] = 6
         return super(Ac3Codec, self).parse_options(stream)
 
-class EAc3Codec(AudioCodec):
+
+class EAc3Codec(AudioEncoder):
     """
     Dolby Digital Plus/EAC3 audio codec.
     """
@@ -689,22 +681,23 @@ class EAc3Codec(AudioCodec):
         return super(EAc3Codec, self).parse_options(stream)
 
 
-class FlacCodec(AudioCodec):
+class FlacCodec(AudioEncoder):
     """
     FLAC audio codec.
     """
     codec_name = 'flac'
     ffmpeg_codec_name = 'flac'
+
     # flac_experimental_enable = ['-strict', 'experimental']
 
     def __init__(self, opts) -> None:
         super(FlacCodec, self).__init__(opts)
 
-    #def _codec_specific_produce_ffmpeg_list(self, safe, stream=0):
-        #return self.flac_experimental_enable
+    # def _codec_specific_produce_ffmpeg_list(self, safe, stream=0):
+    # return self.flac_experimental_enable
 
 
-class DtsCodec(AudioCodec):
+class DtsCodec(AudioEncoder):
     """
     DTS audio codec.
     """
@@ -714,7 +707,6 @@ class DtsCodec(AudioCodec):
 
     def __init__(self, opts) -> None:
         super(DtsCodec, self).__init__(opts)
-
 
     def parse_options(self, stream=0):
         if 'bitrate' in self.safeopts:
@@ -728,7 +720,7 @@ class DtsCodec(AudioCodec):
         return self.dca_experimental_enable
 
 
-class Mp3Codec(AudioCodec):
+class Mp3Codec(AudioEncoder):
     """
     MP3 (MPEG layer 3) audio codec.
     """
@@ -738,7 +730,8 @@ class Mp3Codec(AudioCodec):
     def __init__(self, opts) -> None:
         super(Mp3Codec, self).__init__(opts)
 
-class Mp2Codec(AudioCodec):
+
+class Mp2Codec(AudioEncoder):
     """
     MP2 (MPEG layer 2) audio codec.
     """
@@ -748,19 +741,20 @@ class Mp2Codec(AudioCodec):
     def __init__(self, opts) -> None:
         super(Mp2Codec, self).__init__(opts)
 
+
 # Video Codecs
-class TheoraCodec(VideoCodec):
+class TheoraCodec(VideoEncoder):
     """
     Theora video codec.
     """
     codec_name = 'theora'
     ffmpeg_codec_name = 'libtheora'
-    encoder_options = VideoCodec.encoder_options.copy()
+    encoder_options = VideoEncoder.encoder_options.copy()
     encoder_options.update({
         'quality': int,  # audio quality. Range is 0-10(highest quality)
         # 5-7 is a good range to try (default is 200k bitrate)
     })
-    defaults = VideoCopyCodec.defaults.copy()
+    defaults = VideoCopyEncoder.defaults.copy()
     defaults.update({'quality': 'integer(default=5)'})
 
     def __init__(self, opts) -> None:
@@ -773,13 +767,13 @@ class TheoraCodec(VideoCodec):
         return optlist
 
 
-class H264Codec(VideoCodec):
+class H264Codec(VideoEncoder):
     """
     H.264/AVC video codec.
     """
     codec_name = 'h264'
     ffmpeg_codec_name = 'libx264'
-    encoder_options = VideoCodec.encoder_options.copy()
+    encoder_options = VideoEncoder.encoder_options.copy()
     encoder_options.update({
         'preset': str,  # common presets are ultrafast, superfast, veryfast,
         # faster, fast, medium(default), slow, slower, veryslow
@@ -792,11 +786,9 @@ class H264Codec(VideoCodec):
         'hscale': int  # special handlers for the even number requirements of h264
     })
 
-    defaults = VideoCodec.defaults.copy()
+    defaults = VideoEncoder.defaults.copy()
     defaults.update({'preset': 'string(default=None)',
                      'crf': 'integer(default=23)',
-                     'profile': 'string(default=None)',
-                     'level': 'float(default=3.0)',
                      'tune': 'string(default=None)'
                      })
 
@@ -807,12 +799,12 @@ class H264Codec(VideoCodec):
 
         if 'width' in self.safeopts:
             self.safeopts['wscale'] = self.safeopts['width']
-            del(self.safeopts['width'])
+            del (self.safeopts['width'])
         if 'height' in self.safeopts:
             self.safeopts['hscale'] = self.safeopts['height']
-            del(self.safeopts['height'])
+            del (self.safeopts['height'])
         if 'crf' in self.safeopts and 'bitrate' in self.safeopts:
-            del(self.safeopts['bitrate'])
+            del (self.safeopts['bitrate'])
 
         return super(H264Codec, self).parse_options(stream)
 
@@ -855,6 +847,7 @@ class X264(H264Codec):
     def __init__(self, opts) -> None:
         super(X264, self).__init__(opts)
 
+
 class NVEncH264(H264Codec):
     """
     Nvidia H.264/AVC video codec.
@@ -865,19 +858,27 @@ class NVEncH264(H264Codec):
     def __init__(self, opts) -> None:
         super(NVEncH264, self).__init__(opts)
 
+
 class H264VAAPI(H264Codec):
     """
     H.264/AVC video codec.
     """
     codec_name = 'h264vaapi'
     ffmpeg_codec_name = 'h264_vaapi'
+    encoder_options = H264Codec.encoder_options.copy()
+    encoder_options.update({'vaapi_device': str})
+
+    defaults = H264Codec.defaults.copy()
+    defaults.update({'vaapi_device': 'string(default=/dev/dri/renderD128)'})
 
     def __init__(self, opts) -> None:
         super(H264VAAPI, self).__init__(opts)
 
-    def _codec_specific_produce_ffmpeg_list(self, safe, stream=0):
+    def _codec_specific_produce_ffmpeg_list(self, safe: dict, stream=0):
         optlist = []
         optlist.extend(['-vaapi_device', '/dev/dri/renderD128'])
+        if 'vaapi_device' in safe:
+            optlist.extend(['-vaapi_device', safe['vaapi_device']])
         if 'preset' in safe:
             optlist.extend(['-preset', safe['preset']])
         if 'quality' in safe:
@@ -915,13 +916,13 @@ class H264QSV(H264Codec):
         return optlist
 
 
-class H265Codec(VideoCodec):
+class H265Codec(VideoEncoder):
     """
     H.265/AVC video codec.
     """
     codec_name = 'h265'
     ffmpeg_codec_name = 'libx265'
-    encoder_options = VideoCodec.encoder_options.copy()
+    encoder_options = VideoEncoder.encoder_options.copy()
     encoder_options.update({
         'preset': str,  # common presets are ultrafast, superfast, veryfast,
         # faster, fast, medium(default), slow, slower, veryslow
@@ -934,13 +935,11 @@ class H265Codec(VideoCodec):
         'hscale': int  # special handlers for the even number requirements of h265
     })
 
-    defaults = VideoCodec.defaults.copy()
+    defaults = VideoEncoder.defaults.copy()
     defaults.update({'preset': 'string(default=None)',
-                        'crf': 'integer(default=23)',
-                        'profile': 'string(default=None)',
-                        'level': 'float(default=3.0)',
-                        'tune': 'string(default=None)'
-                        })
+                     'crf': 'integer(default=23)',
+                     'tune': 'string(default=None)'
+                     })
 
     def __init__(self, opts) -> None:
         super(H265Codec, self).__init__(opts)
@@ -948,12 +947,12 @@ class H265Codec(VideoCodec):
     def parse_options(self, stream=0):
         if 'width' in self.safeopts:
             self.safeopts['wscale'] = self.safeopts['width']
-            del(self.safeopts['width'])
+            del (self.safeopts['width'])
         if 'height' in self.safeopts:
             self.safeopts['hscale'] = self.safeopts['height']
-            del(self.safeopts['height'])
+            del (self.safeopts['height'])
         if 'crf' in self.safeopts and 'bitrate' in self.safeopts:
-            del(self.safeopts['bitrate'])
+            del (self.safeopts['bitrate'])
         return super(H265Codec, self).parse_options(stream)
 
     def _codec_specific_produce_ffmpeg_list(self, safe, stream=0):
@@ -1001,7 +1000,7 @@ class NVEncH265(H265Codec):
         super(NVEncH265, self).__init__(opts)
 
 
-class DivxCodec(VideoCodec):
+class DivxCodec(VideoEncoder):
     """
     DivX video codec.
     """
@@ -1012,7 +1011,7 @@ class DivxCodec(VideoCodec):
         super(DivxCodec, self).__init__(opts)
 
 
-class Vp8Codec(VideoCodec):
+class Vp8Codec(VideoEncoder):
     """
     Google VP8 video codec.
     """
@@ -1022,7 +1021,8 @@ class Vp8Codec(VideoCodec):
     def __init__(self, opts) -> None:
         super(Vp8Codec, self).__init__(opts)
 
-class H263Codec(VideoCodec):
+
+class H263Codec(VideoEncoder):
     """
     H.263 video codec.
     """
@@ -1033,7 +1033,7 @@ class H263Codec(VideoCodec):
         super(H263Codec, self).__init__(opts)
 
 
-class FlvCodec(VideoCodec):
+class FlvCodec(VideoEncoder):
     """
     Flash Video codec.
     """
@@ -1044,10 +1044,11 @@ class FlvCodec(VideoCodec):
         super(FlvCodec, self).__init__(opts)
 
 
-class MpegCodec(VideoCodec):
+class MpegCodec(VideoEncoder):
     """
     Base MPEG video codec.
     """
+
     # Workaround for a bug in ffmpeg in which aspect ratio
     # is not correctly preserved, so we have to set it
     # again in vf; take care to put it *before* crop/pad, so
@@ -1095,7 +1096,7 @@ class Mpeg2Codec(MpegCodec):
 
 
 # Subtitle Codecs
-class MOVTextCodec(SubtitleCodec):
+class MOVTextCodec(SubtitleEncoder):
     """
     mov_text subtitle codec.
     """
@@ -1106,7 +1107,7 @@ class MOVTextCodec(SubtitleCodec):
         super(MOVTextCodec, self).__init__(opts)
 
 
-class SrtCodec(SubtitleCodec):
+class SrtCodec(SubtitleEncoder):
     """
     SRT subtitle codec.
     """
@@ -1117,7 +1118,7 @@ class SrtCodec(SubtitleCodec):
         super(SrtCodec, self).__init__(opts)
 
 
-class WebVTTCodec(SubtitleCodec):
+class WebVTTCodec(SubtitleEncoder):
     """
     SRT subtitle codec.
     """
@@ -1128,7 +1129,7 @@ class WebVTTCodec(SubtitleCodec):
         super(WebVTTCodec, self).__init__(opts)
 
 
-class SSA(SubtitleCodec):
+class SSA(SubtitleEncoder):
     """
     SSA (SubStation Alpha) subtitle.
     """
@@ -1139,7 +1140,7 @@ class SSA(SubtitleCodec):
         super(SSA, self).__init__(opts)
 
 
-class SubRip(SubtitleCodec):
+class SubRip(SubtitleEncoder):
     """
     SubRip subtitle.
     """
@@ -1150,7 +1151,7 @@ class SubRip(SubtitleCodec):
         super(SubRip, self).__init__(opts)
 
 
-class DVBSub(SubtitleCodec):
+class DVBSub(SubtitleEncoder):
     """
     DVB subtitles.
     """
@@ -1161,7 +1162,7 @@ class DVBSub(SubtitleCodec):
         super(DVBSub, self).__init__(opts)
 
 
-class DVDSub(SubtitleCodec):
+class DVDSub(SubtitleEncoder):
     """
     DVD subtitles.
     """
@@ -1172,9 +1173,7 @@ class DVDSub(SubtitleCodec):
         super(DVDSub, self).__init__(opts)
 
 
-
-class CodecFactory(object):
-
+class EncoderFactory(object):
     codecs = {'video': {}, 'audio': {}, 'subtitle': {}}
 
     @classmethod
@@ -1202,59 +1201,59 @@ class CodecFactory(object):
     def getsubtitle(cls, codec: str, cfg):
         return cls.codecs['subtitle'][codec](cfg['subtitle'][codec])
 
+
 # Video Codecs
-CodecFactory.register(VideoCopyCodec)
-CodecFactory.register(TheoraCodec)
-CodecFactory.register(H264Codec)
-CodecFactory.register(H264QSV)
-CodecFactory.register(HEVCQSV)
-CodecFactory.register(H265Codec)
-CodecFactory.register(DivxCodec)
-CodecFactory.register(Vp8Codec)
-CodecFactory.register(H263Codec)
-CodecFactory.register(FlvCodec)
-CodecFactory.register(Mpeg1Codec)
-CodecFactory.register(Mpeg2Codec)
-CodecFactory.register(NVEncH264)
-CodecFactory.register(NVEncH265)
-CodecFactory.register(H264VAAPI)
+EncoderFactory.register(VideoCopyEncoder)
+EncoderFactory.register(TheoraCodec)
+EncoderFactory.register(H264Codec)
+EncoderFactory.register(H264QSV)
+EncoderFactory.register(HEVCQSV)
+EncoderFactory.register(H265Codec)
+EncoderFactory.register(DivxCodec)
+EncoderFactory.register(Vp8Codec)
+EncoderFactory.register(H263Codec)
+EncoderFactory.register(FlvCodec)
+EncoderFactory.register(Mpeg1Codec)
+EncoderFactory.register(Mpeg2Codec)
+EncoderFactory.register(NVEncH264)
+EncoderFactory.register(NVEncH265)
+EncoderFactory.register(H264VAAPI)
 
 # Audio Codecs
-CodecFactory.register(AudioCopyCodec)
-CodecFactory.register(VorbisCodec)
-CodecFactory.register(AacCodec)
-CodecFactory.register(Mp3Codec)
-CodecFactory.register(Mp2Codec)
-CodecFactory.register(FdkAacCodec)
-CodecFactory.register(FAacCodec)
-CodecFactory.register(EAc3Codec)
-CodecFactory.register(Ac3Codec)
-CodecFactory.register(DtsCodec)
-CodecFactory.register(FlacCodec)
+EncoderFactory.register(AudioCopyEncoder)
+EncoderFactory.register(VorbisCodec)
+EncoderFactory.register(AacCodec)
+EncoderFactory.register(Mp3Codec)
+EncoderFactory.register(Mp2Codec)
+EncoderFactory.register(FdkAacCodec)
+EncoderFactory.register(FAacCodec)
+EncoderFactory.register(EAc3Codec)
+EncoderFactory.register(Ac3Codec)
+EncoderFactory.register(DtsCodec)
+EncoderFactory.register(FlacCodec)
 
 # Subtitle Codecs
-CodecFactory.register(SubtitleCopyCodec)
-CodecFactory.register(MOVTextCodec)
-CodecFactory.register(SrtCodec)
-CodecFactory.register(SSA)
-CodecFactory.register(SubRip)
-CodecFactory.register(DVDSub)
-CodecFactory.register(DVBSub)
-CodecFactory.register(WebVTTCodec)
-
+EncoderFactory.register(SubtitleCopyEncoder)
+EncoderFactory.register(MOVTextCodec)
+EncoderFactory.register(SrtCodec)
+EncoderFactory.register(SSA)
+EncoderFactory.register(SubRip)
+EncoderFactory.register(DVDSub)
+EncoderFactory.register(DVBSub)
+EncoderFactory.register(WebVTTCodec)
 
 audio_codec_list = [
-    AudioNullCodec, AudioCopyCodec, VorbisCodec, AacCodec, Mp3Codec, Mp2Codec,
+    AudioNullEncoder, AudioCopyEncoder, VorbisCodec, AacCodec, Mp3Codec, Mp2Codec,
     FdkAacCodec, FAacCodec, EAc3Codec, Ac3Codec, DtsCodec, FlacCodec
 ]
 
 video_codec_list = [
-    VideoNullCodec, VideoCopyCodec, TheoraCodec, H264Codec, H264QSV, HEVCQSV, H265Codec,
+    VideoNullEncoder, VideoCopyEncoder, TheoraCodec, H264Codec, H264QSV, HEVCQSV, H265Codec,
     DivxCodec, Vp8Codec, H263Codec, FlvCodec, Mpeg1Codec, NVEncH264, NVEncH265,
     Mpeg2Codec, H264VAAPI
 ]
 
 subtitle_codec_list = [
-    SubtitleNullCodec, SubtitleCopyCodec, MOVTextCodec, SrtCodec, SSA, SubRip, DVDSub,
+    SubtitleNullEncoder, SubtitleCopyEncoder, MOVTextCodec, SrtCodec, SSA, SubRip, DVDSub,
     DVBSub, WebVTTCodec
 ]

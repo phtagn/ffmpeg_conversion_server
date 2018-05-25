@@ -1,6 +1,6 @@
 # coding=utf-8
 import abc
-from converter.avcodecs import CodecFactory
+from converter.encoders import EncoderFactory
 from converter.ffmpeg import MediaInfo, MediaStreamInfo
 import logging
 import languagecode
@@ -129,16 +129,16 @@ class GenericContainer(object):
         info = mediainfo.video
 
         if self.prefer_method == 'copy' and info.codec in self.video_codecs:
-            vcodec = CodecFactory.get('copy', 'video', codecopts)
+            vcodec = EncoderFactory.get('copy', 'video', codecopts)
 
         elif self.prefer_method == 'transcode' or info.codec not in self.video_codecs:
-            vcodec = CodecFactory.get(self.transcode_with, 'video', codecopts)
+            vcodec = EncoderFactory.get(self.transcode_with, 'video', codecopts)
             vcodec.add_options({'src_width': getattr(info, 'video_width', None),
                                 'src_height': getattr(info, 'video_height', None)})
 
         elif self.prefer_method == 'override':
             override = False
-            vcodec = CodecFactory.get(self.transcode_with, 'video', codecopts)
+            vcodec = EncoderFactory.get(self.transcode_with, 'video', codecopts)
             opts = vcodec.safeopts
 
             if info.codec != self.transcode_with:
@@ -167,7 +167,7 @@ class GenericContainer(object):
                 override = True
 
             if override == False:
-                vcodec = CodecFactory.get('copy', 'video', codecopts)
+                vcodec = EncoderFactory.get('copy', 'video', codecopts)
 
         if vcodec.codec_name in ['h265', 'hevc'] or (info.codec in ['h265', 'hevc'] and vcodec.codec_name == 'copy'):
             self.postopts.extend(['-tag:v', 'hvc1'])
@@ -186,7 +186,7 @@ class GenericContainer(object):
         for s in info:
 
             if s.codec in self.audio_codecs:
-                acodec = CodecFactory.get('copy', 'audio', codecopts)
+                acodec = EncoderFactory.get('copy', 'audio', codecopts)
                 acodec.add_options({'map': s.index,
                                     'language': s.metadata['language']
                                     })
@@ -198,7 +198,7 @@ class GenericContainer(object):
             # We want to create extra audio channels with the proper specs if we have not copied them before
             if s.codec not in self.__class__.badcodecs and self.audio_create_streams:
                 for c in self.audio_create_streams:
-                    acodec = CodecFactory.get(c, 'audio', codecopts)
+                    acodec = EncoderFactory.get(c, 'audio', codecopts)
                     if (s.audio_channels > acodec.safeopts.get('channels', s.audio_channels)
                             or (s.bitrate and s.bitrate > acodec.safeopts.get('bitrate', s.bitrate))
                             or acodec.safeopts.get('filter')
@@ -226,9 +226,9 @@ class GenericContainer(object):
 
         for s in info:
             if s.codec in self.subtitle_codecs:
-                scodec = CodecFactory.get('copy', 'subtitle', codecopts)
+                scodec = EncoderFactory.get('copy', 'subtitle', codecopts)
             elif s.codec not in self.__class__.badcodecs:
-                scodec = CodecFactory.get(self.subtitle_codecs[0], 'subtitle', codecopts)
+                scodec = EncoderFactory.get(self.subtitle_codecs[0], 'subtitle', codecopts)
 
             if scodec:
                 self.streams['subtitle'] = {sub_stream_number: scodecs}
@@ -313,14 +313,14 @@ class MP4(GenericContainer):
         acodecs = []
         if s.codec not in self.__class__.badcodecs:
             if self.ios_audio and s.audio_channels <= 2 and s.codec == 'aac' and s.codec not in self.audio_codecs:
-                acodec = CodecFactory.get('copy', 'audio', self.codecopts)
+                acodec = EncoderFactory.get('copy', 'audio', self.codecopts)
                 acodec.add_options({'map': s.index,
                                     'language': s.metadata['language']})
                 acodecs.append({audio_stream_number: acodec})
                 audio_stream_number += 1
 
             elif self.ios_audio and s.audio_channels > 2:
-                acodec = CodecFactory.get('aac', 'audio', {
+                acodec = EncoderFactory.get('aac', 'audio', {
                     'bitrate': 256,
                     'channels': 2,
                     'filter': getattr(self, 'ios_audio_filter', None),

@@ -1,17 +1,33 @@
 # coding=utf-8
 from containers2 import ContainerFactory
 from converter.streamformats import StreamFormatFactory
-from converter.avcodecs import CodecFactory
+from converter.encoders import EncoderFactory
 from configobj import ConfigObj
 
 
 containersettings = {ctn.name: ctn.defaults for ctn in ContainerFactory.containers.values()}
 
-codecsettings = {'video': {cdc.codec_name: cdc.defaults for cdc in CodecFactory.codecs['video'].values()},
-                 'audio': {cdc.codec_name: cdc.defaults for cdc in CodecFactory.codecs['audio'].values()},
-                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in CodecFactory.codecs['subtitle'].values()}
+encosettings = {'video': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values()},
+                 'audio': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values()},
+                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values()}
                  }
 
+
+def buildencodersettings():
+    encodersettings = {'video': {},
+                       'audio': {},
+                       'subtitle': {}
+                       }
+    for category in encodersettings.keys():
+        for enc in EncoderFactory.codecs[category].values():
+            if len(enc.defaults) == 0:
+                continue
+            else:
+                encodersettings[category].update({enc.codec_name: enc.defaults})
+
+    return encodersettings
+
+encodersettings = buildencodersettings()
 formatsettings = {fmt.name: fmt.format_options for fmt in StreamFormatFactory.formats.values()}
 
 defaultconfig = {
@@ -42,7 +58,8 @@ defaultconfig = {
         'permissions': 'integer(default=777)'
     },
     'Containers': containersettings,
-    'StreamFormats': formatsettings
+    'TrackFormats': formatsettings,
+    'Encoders': encodersettings
 }
 
 configspec = ConfigObj(defaultconfig, list_values=False)
