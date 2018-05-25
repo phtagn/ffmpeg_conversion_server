@@ -259,13 +259,12 @@ class VideoCodec(BaseCodec):
         'pix_fmt': str,
         'map': int
     }
-
+    #        'width': 'integer(default=1280)',
+    #        'height': 'integer(default=720)',
     defaults = {
         'bitrate': 'integer(default=1500)',
         'filter': 'string(default=None)',
         'pix_fmt': 'string(default=None)',
-        'width': 'integer(default=1280)',
-        'height': 'integer(default=720)',
         'mode': 'string(default=None)'
     }
 
@@ -1189,9 +1188,9 @@ class CodecFactory(object):
     @classmethod
     def getvideo(cls, codec: str, cfg):
         if codec == 'copy':
-            return cls.codecs['video']['copy']
+            return cls.codecs['video']['copy'](cfg)
         elif codec == 'null':
-            return cls.codecs['video']['null']
+            return cls.codecs['video']['null']()
         else:
             return cls.codecs['video'][codec](cfg['video'][codec])
 

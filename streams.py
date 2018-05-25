@@ -1,107 +1,114 @@
 # coding=utf-8
-import abc
-from converter.avcodecs import CodecFactory
-from converter.streamformats import StreamFormatFactory
-from converter.ffmpeg import MediaInfo, MediaStreamInfo
-import logging
+from converter.streaminfo import MediaStreamInfo
+from typing import Type
 import languagecode
-import sys
-import os
-from typing import Union, Dict
 
 
-class Streams(object):
+class StreamTemplate(object):
 
-    def __init__(self):
-        self._videos_streams = []
-        self._audio_streams = []
-        self._subtitle_streams = []
-
-    @property
-    def video_streams(self):
-        return self._videos_streams
-
-    @property
-    def audio_streams(self):
-        return self._audio_streams
-
-    @property
-    def subtitle_streams(self):
-        return self._subtitle_streams
-
-    def add_video_stream(self, stream):
-        self._videos_streams.append(stream)
-
-    def add_audio_stream(self, stream):
-        self._audio_streams.append(stream)
-
-    def add_subtitle_stream(self, stream):
-        self._subtitle_streams.append(stream)
-
-
-class StreamProcessor(object):
-    streamtype = ''
-
-    def __init__(self, cfg, container):
-        self.config = cfg
-        self.container = container
-
-    def getcopycodec(self):
-        """Returns the copy codec"""
-        return CodecFactory.get('copy', self.__class__.streamtype, self.cfg)
-
-    def getnullcodec(self):
-        """Returns the null codec"""
-        return CodecFactory.get('null', self.__class__.streamtype, self.cfg)
-
-
-class VideoStreamProcessor(StreamProcessor):
-
-    streamtype = 'video'
-
-    def __init__(self, cfg, container):
-        super(VideoStreamProcessor, self).__init__(cfg=cfg, container=container)
-
-    def override(self, sourcestream, targetstream):
+    def conforms(self, stream: Type[MediaStreamInfo]):
         """
-        Compares source and target codecs. If source codecs fits within target codec limits, returns copy codec,
-        if not, returns a codec parameterised for conversion.
-        :param sourcestream: MediaStreamInfo
-        :param targetstream: codec
-        :return: codec
+        Tests conformance of the MediaStreamInfo object to the template.
+        If values are None or otherwise empty in the template, conformance is True.
+        :param stream: MediaStreamInfo object
+        :return: bool
         """
-        stream = StreamFormatFactory.get(targetstream, self.config)
-
-        if sourcestream.codec != codec.codec_name:
-            return codec
-
-        if 'bitrate' in codec.safeopts and sourcestream.bitrate > codec.safeopts.bitrate:
-            return codec
-
-        if 'width' in codec.safeopts and sourcestream.width > codec.safeopts.width:
-            return codec
-
-        if 'height' in codec.safeopts and sourcestream.height > codec.safeopts['height']:
-            return codec
-
-        if self.config[self.container].get('pix_fmts') and sourcestream.pix_fmt not in self.config.get('pix_fmts'):
-            return codec
-
-        return CodecFactory.getvideo('copy', self.config)
+        pass
 
 
-class AudioStreamProcessor(StreamProcessor):
+class VideoStreamTemplate(StreamTemplate):
+    """
+    Template for video streams.
+    """
+    def __init__(self,
+                 codecs=list,
+                 bitrate=0,
+                 height=0,
+                 width=0,
+                 level=0,
+                 pix_fmts=list(),
+                 profiles=list()):
 
-    def __init__(self, cfg, container):
-        super(AudioStreamProcessor, self).__init__(cfg=cfg, container=container)
+        self.codecs = codecs
+        self.bitrate = bitrate
+        self.height = height
+        self.width = width
+        self.level = level
+        self.pix_fmts = pix_fmts
+        self.profiles = profiles
+
+    def conforms(self, stream: Type[MediaStreamInfo]):
+
+        if not stream.codec:
+            return False
+
+        if self.codecs and stream.codec not in self.codecs:
+            return False
+
+        elif self.bitrate and stream.bitrate > self.bitrate:
+            return False
+
+        elif self.height and stream.height > self.height:
+            return False
+
+        elif self.width and stream.width > self.width:
+            return False
+
+        elif self.level and stream.level > self.level:
+            return False
+
+        elif self.pix_fmts and stream.pix_fmt not in self.pix_fmts:
+            return False
+
+        elif self.profiles and stream.profile not in self.profiles:
+            return False
+
+        else:
+            return True
 
 
-class Stream(object):
+class AudioStreamTemplate(StreamTemplate):
 
-    def __init__(self, streamformat, cfg, index=0):
-        self.format = streamformat.name
-        self.index = index
+    def __init__(self,
+                 codecs=list,
+                 bitrate=0,
+                 channels=0):
+        self.codecs = codecs
+        self.bitrate = bitrate
+        self.channels = channels
 
-        for option in cfg['StreamFormats'][self.format]:
-            setattr(self, option, cfg['StreamFormats'].get(option))
+    def conforms(self, stream: Type[MediaStreamInfo]):
 
+        if not stream.codec:
+            return False
+
+        if not stream.codec in self.codecs:
+            return False
+
+        if self.bitrate and stream.bitrate > self.bitrate:
+            return False
+
+        if self.channels and stream.channels > self.channels:
+            return False
+
+        else:
+            return True
+
+
+class SubtitleStreamTemplate(StreamTemplate):
+
+    def __init__(self,
+                 codecs=list):
+
+        self.codecs = codecs
+
+    def conforms(self, stream: Type[MediaStreamInfo]):
+
+        if not stream.codec:
+            return False
+
+        if stream.codec not in self.codecs:
+            return False
+
+        else:
+            return True
