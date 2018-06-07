@@ -257,8 +257,8 @@ class VideoEncoder(BaseEncoder):
         'pix_fmt': str,
         'map': int
     }
-
-    defaults = {}
+    defaults = AudioEncoder.defaults.copy()
+    defaults.update({'quality': 'integer(default=5)'})
 
     def _aspect_corrections(self, sw, sh, w, h, mode):
         # If we don't have source info, we don't try to calculate
@@ -648,6 +648,7 @@ class Ac3Codec(AudioEncoder):
     codec_name = 'ac3'
     ffmpeg_codec_name = 'ac3'
 
+
     def __init__(self, opts) -> None:
         super(Ac3Codec, self).__init__(opts)
 
@@ -920,7 +921,7 @@ class H265Codec(VideoEncoder):
     """
     H.265/AVC video codec.
     """
-    codec_name = 'h265'
+    codec_name = 'hevc'
     ffmpeg_codec_name = 'libx265'
     encoder_options = VideoEncoder.encoder_options.copy()
     encoder_options.update({

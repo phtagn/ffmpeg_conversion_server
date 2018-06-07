@@ -8,7 +8,7 @@ class BaseStreamFormat(object):
     name = ''
 
     @classmethod
-    def getEncoder(cls, encoder: str = None):
+    def getEncoder(cls, encoder: str = 'default'):
         """
         Returns an encoder from avcodecs. The encoder is instantiated with encoderoptions.
         If encoderoptions are invalid, they are disregaarded by the encoder.
@@ -17,7 +17,7 @@ class BaseStreamFormat(object):
         :param encoder: str, name of the encoder
         :return: avcodecs.codec
         """
-        if not encoder:
+        if encoder == 'default':
             return cls.encoders[cls.default_encoder]
         elif encoder in cls.encoders:
             return cls.encoders[encoder]
@@ -25,7 +25,7 @@ class BaseStreamFormat(object):
 
 class VideoStreamFormat(BaseStreamFormat):
     format_options = {
-        'bitrate': 'integer(default=1500)',
+        'max_bitrate': 'integer(default=1500)',
         'filter': 'string(default=None)',
         'pix_fmts': 'string(default=None)',
         'max_width': 'integer(default=1280)',
@@ -52,8 +52,6 @@ class TheoraStreamFormat(VideoStreamFormat):
 
     default_encoder = 'theora'
     name = 'theora'
-    format_options = VideoStreamFormat.format_options.copy()
-    format_options.update({'quality': 'integer(default=5)'})
 
 
 class DivxStreamFormat(VideoStreamFormat):
@@ -104,17 +102,15 @@ class H264StreamFormat(VideoStreamFormat):
                 'h264': encoders.H264Codec,
                 'h264sqv': encoders.H264QSV,
                 'h264vaapi': encoders.H264VAAPI,
-                'h264nvenc': encoders.NVEncH264
+                'nvenc_h264': encoders.NVEncH264
                 }
 
     default_encoder = 'h264'
     name = 'h264'
 
     format_options = {
-        'encoder': 'option(h264, h264qsv, h264vaapi, h264nvenc, default=h264)',
-        'profile': 'string(default=None)',
-        'level': 'float(default=3.0)',
-        'tune': 'string(default=None)',
+        'encoder': 'option(h264, h264qsv, h264vaapi, nvenc_h264, default=h264)',
+        'profiles': 'force_list(default=None)',
         'pix_fmts': 'force_list(default=None)',
         'max_level': 'float(default=3.0)'
     }
@@ -126,18 +122,16 @@ class H265StreamFormat(VideoStreamFormat):
     encoders = {'copy': encoders.VideoCopyEncoder,
                 'h265': encoders.H265Codec,
                 'hevcsqv': encoders.HEVCQSV,
-                'h265nvenc': encoders.NVEncH265
+                'nvenc_h265': encoders.NVEncH265
                 }
 
     default_encoder = 'h265'
     name = 'h265'
     format_options = {
-        'encoder': 'option(h265, hevcqsv, h265nvenc, default=h265)',
+        'encoder': 'option(h265, hevcqsv, nvenc_h265, default=h265)',
         'preset': 'string(default=None)',
-        'crf': 'integer(default=23)',
-        'profile': 'string(default=None)',
-        'level': 'float(default=3.0)',
-        'tune': 'string(default=None)'
+        'profiles': 'force_list(default=None)',
+        'level': 'float(default=3.0)'
     }
 
     format_options.update(VideoStreamFormat.format_options.copy())
@@ -148,8 +142,6 @@ class VorbisStreamFormat(AudioStreamFormat):
                 'vorbis': encoders.VorbisCodec}
     default_encoder = 'vorbis'
     name = 'vorbis'
-    format_options = AudioStreamFormat.format_options
-    format_options.update({'quality': 'integer(default=3)'})
 
 
 class Mp3StreamFormat(AudioStreamFormat):
@@ -177,6 +169,9 @@ class Ac3StreamFormat(AudioStreamFormat):
                 'ac3': encoders.Ac3Codec}
     default_encoder = 'ac3'
     name = 'ac3'
+    format_options = AudioStreamFormat.format_options.copy()
+    format_options.update({'max_bitrate': 'integer(default=384)',
+                           'max_channels': 'integer(default=6)'})
 
 
 class DtsStreamFormat(AudioStreamFormat):
@@ -258,9 +253,9 @@ class StreamFormatFactory(object):
     formats = {
         'theora': TheoraStreamFormat,
         'h264': H264StreamFormat,
-        'x264': H264StreamFormat, # Alias
+        'x264': H264StreamFormat,  # Alias
         'h265': H265StreamFormat,
-        'hevc': H265StreamFormat, # Alias
+        'hevc': H265StreamFormat,  # Alias
         'divx': DivxStreamFormat,
         'vp8': Vp8StreamFormat,
         'h263': H263StreamFormat,

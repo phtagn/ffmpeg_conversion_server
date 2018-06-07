@@ -1,33 +1,43 @@
 # coding=utf-8
-from containers2 import ContainerFactory
+from streamgenerator import TargetContainerGenerator
 from converter.streamformats import StreamFormatFactory
 from converter.encoders import EncoderFactory
 from configobj import ConfigObj
 
 
-containersettings = {ctn.name: ctn.defaults for ctn in ContainerFactory.containers.values()}
+#containersettings = {ctn.name: ctn.defaults for ctn in ContainerFactory.containers.values()}
+containersettings = {'mp4': {
+        'video': {
+            'prefer_method': 'option(copy, transcode, override, default=copy)',
+            'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
+            'transcode_to': 'string(default=h264)'
+        },
 
-encosettings = {'video': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values()},
-                 'audio': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values()},
-                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values()}
-                 }
+        'audio': {
+            'accepted_track_formats': 'force_list(default=list(aac, ac3))',
+            'transcode_to': 'string(default=aac)',
+            'force_create_tracks': 'force_list(default=None)',
+            'audio_copy_original': 'boolean(default=False)',
+            'create_multiple_stereo_tracks': 'boolean(default=False)',
+        },
 
+        'subtitle': {
+            'accepted_track_formats': 'force_list(default=list(mov_text))',
+        },
 
-def buildencodersettings():
-    encodersettings = {'video': {},
-                       'audio': {},
-                       'subtitle': {}
-                       }
-    for category in encodersettings.keys():
-        for enc in EncoderFactory.codecs[category].values():
-            if len(enc.defaults) == 0:
-                continue
-            else:
-                encodersettings[category].update({enc.codec_name: enc.defaults})
+        'process_same': 'boolean(default=False)',
+        'preopts': 'string(default=None)',
+        'postopts': 'string(default=None)'
+    }}
+#encosettings = {'video': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values()},
+#                 'audio': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values()},
+#                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values()}
+#                 }
 
-    return encodersettings
+encosettings = {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values() if cdc.defaults}
+encosettings.update({cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values() if cdc.defaults})
+encosettings.update({cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values() if cdc.defaults})
 
-encodersettings = buildencodersettings()
 formatsettings = {fmt.name: fmt.format_options for fmt in StreamFormatFactory.formats.values()}
 
 defaultconfig = {
@@ -59,7 +69,7 @@ defaultconfig = {
     },
     'Containers': containersettings,
     'TrackFormats': formatsettings,
-    'Encoders': encodersettings
+    'Encoders': encosettings
 }
 
 configspec = ConfigObj(defaultconfig, list_values=False)

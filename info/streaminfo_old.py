@@ -165,43 +165,6 @@ class MediaStreamInfo(object):
     def disposition(self, value):
         self._disposition.update(value)
 
-    def should_transcode(self, target):
-        """Returns true if you need transcoding to go from this to the target.
-        If an attribute is None in the target or in self it is disregarded in the test"""
-        assert isinstance(target, MediaStreamInfo)
 
-        if self.type != target.type:
-            raise Exception('Target type does not match. Cannot compare accross types.')
-
-        if self.codec != target.codec:
-            return True
-
-        elif self.height and target.height and self.height > target.height:
-            return True
-
-        elif self.width and target.width and self.width > target.width:
-            return True
-
-        elif self.bitrate and target.bitrate and self.bitrate > target.bitrate:
-            return True
-
-        elif self.level and target.level and self.level > target.level:
-            return True
-
-        elif self.pix_fmt and target.pix_fmt and self.pix_fmt != target.pix_fmt:
-            return True
-
-        elif self.profile and target.profile and self.profile != target.profile:
-            return True
-
-        elif self.bframes and target.bframes and self.bframes > target.bframes:
-            return True
-
-        elif self.channels and target.channels and self.channels > target.channels:
-            return True
-
-        elif self.samplerate and target.samplerate and self.samplerate > target.samplerate:
-            return True
-
-        else:
-            return False
+class VideoStreamInfo(MediaStreamInfo):
+    pass

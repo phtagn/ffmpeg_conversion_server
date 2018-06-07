@@ -5,6 +5,7 @@ import validate
 import logging
 from defaultconfig import configspec
 import os
+import languagecode
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -76,8 +77,59 @@ class cfgmgr(object):
 
                 self._usercfg.walk(self.properNone)
 
+                self.fixafewthings()
+
         else:
             raise IOError(f'Could not find config file {inifile}')
+
+
+    def fixafewthings(self):
+
+        def getalias(codecnames: list) -> list:
+            """
+            Small function to fix some codecs being called by another name. For example, h265 is referred to as hevc.
+            :param codecnames: name of a codec (e.g. h264, hevc)
+            :return:
+            """
+
+            codecalias = {'h265': 'hevc',
+                          'x264': 'h264',
+                          'x265': 'hevc'}
+
+            output = list(set([codecname if codecname not in codecalias else codecalias[codecname] for codecname in codecnames]))
+            return output
+
+        for section in self._usercfg['Containers']:
+            print(self._usercfg['Containers'][section]['video'])
+            # Make sure that vodecs are only mentionned once, and that there are no aliases the program would not understand
+
+            self._usercfg['Containers'][section]['video']['accepted_track_formats'] = getalias(
+                self._usercfg['Containers'][section]['video']['accepted_track_formats'])
+
+            self._usercfg['Containers'][section]['audio']['accepted_track_formats'] = getalias(
+                self._usercfg['Containers'][section]['audio']['accepted_track_formats'])
+
+            self._usercfg['Containers'][section]['subtitle']['accepted_track_formats'] = getalias(
+                self._usercfg['Containers'][section]['subtitle']['accepted_track_formats'])
+
+            # Make sure that the transcode_to is also in accepted_track_formats
+            if self._usercfg['Containers'][section]['video']['transcode_to'] not in self._usercfg['Containers'][section]['video']['accepted_track_formats']:
+                self._usercfg['Containers'][section]['video']['accepted_track_formats'].append(self._usercfg['Containers'][section]['video']['transcode_to'])
+
+            if self._usercfg['Containers'][section]['audio']['transcode_to'] not in self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
+                self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(self._usercfg['Containers'][section]['audio']['transcode_to'])
+
+            # for audio only, make sure that the force_create_tracks are also on accepted track formats:
+            for codec in self._usercfg['Containers'][section]['audio']['force_create_tracks']:
+
+                if codec not in self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
+                    self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(codec)
+
+        # Make sure that languages are in the correct ISO standard.
+        for t in ['audio', 'subtitle']:
+            self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
+
+
 
     @staticmethod
     def properNone(section, key):
@@ -109,6 +161,3 @@ if __name__ == '__main__':
     cm = cfgmgr()
     cm.savedefaults()
     cm.load('defaults.ini')
-    toto = cm.cfg['Tagging'].get('tagfile')
-    titi = cm.cfg['Tagging'].get('tagfil')
-    print(titi)

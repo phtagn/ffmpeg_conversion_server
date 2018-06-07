@@ -1,13 +1,11 @@
 # coding=utf-8
-import abc
-from converter.streaminfo import MediaInfo, MediaStreamInfo
 import logging
-import languagecode
-import sys
-import os
 from converter.streamformats import StreamFormatFactory
-from typing import Union, Dict
-from streams import VideoStreamTemplate, AudioStreamTemplate, SubtitleStreamTemplate
+from typing import Dict
+from streamtemplates import filterlanguages
+from streamtemplates import VideoStreamTemplate, AudioStreamTemplate, SubtitleStreamTemplate
+from info.streaminfo import VideoStreamInfo, AudioStreamInfo, SubtitleStreamInfo, TargetVideoStream, TargetAudioStream, \
+    TargetSubtitleStream, Container, TargetContainer
 
 log = logging.getLogger(__name__)
 
@@ -50,12 +48,13 @@ class OptionGenerator(object):
 
         target = 'mp4'
         self.video = {'prefer_method': cfg['Containers'][target]['video'].get('prefer_method'),
-                      'transcode_to': cfg['Containers'][target]['video'].get('transcode_to')}
+                      'transcode_to': cfg['Containers'][target]['video'].get('transcode_to'),
+                      'accepted_track_formats': cfg['Containers'][target]['video'].get('accepted_track_formats')}
 
         self.audio = {'transcode_to': cfg['Containers'][target]['audio'].get('transcode_to'),
                       'force_create_tracks': cfg['Containers'][target]['audio'].get('force_create_tracks'),
                       'create_multiple_stereo_tracks': cfg['Containers'][target]['audio'].get(
-                      'create_multiple_stereo_tracks'),
+                          'create_multiple_stereo_tracks'),
                       'accepted_languages': cfg['Languages'].get('audio')
                       }
 
@@ -65,69 +64,176 @@ class OptionGenerator(object):
 
         self.postopts = cfg['Containers'][target].get('postopts') if cfg['Containers'][target].get('postopts') else []
 
-        self.videotemplates = {}
+        self._audioencoders = []
+        self._videoencoders = []
+        self._subtitleencoders = []
 
-        for fmt in cfg['Containers'][target]['video'].get('accepted_track_formats'):
-            if fmt not in cfg['TrackFormats']:
-                raise MissingFormatError(
-                    f'Formats {fmt} is unsupported. Supported formats are {cfg["TrackFormats"].keys()}')
-            fmtopts = cfg['TrackFormats'][fmt]
-            self.videotemplates.update({fmt: VideoStreamTemplate(codec=fmt,
-                                                                 pix_fmts=fmtopts.get('pix_fmts'),
-                                                                 profiles=fmtopts.get('profiles'),
-                                                                 height=fmtopts.get('max_height'),
-                                                                 width=fmtopts.get('max_width'),
-                                                                 bitrate=fmtopts.get('bitrate'),
-                                                                 sfilter=fmtopts.get('filter'),
-                                                                 level=fmtopts.get('max_level'))})
+        self._videostreamtemplate = VideoStreamTemplate(self.config['TrackFormats'],
+                                                        self.config['Containers'][target]['video'][
+                                                            'accepted_track_formats'])
 
-        self.audiotemplates = {}
+        self._audiostreamtemplate = AudioStreamTemplate(self.config['TrackFormats'],
+                                                        self.config['Containers'][target]['audio'][
+                                                            'accepted_track_formats'])
 
-        for fmt in cfg['Containers'][target]['audio'].get('accepted_track_formats'):
-            if fmt not in cfg['TrackFormats']:
-                raise MissingFormatError(
-                    f'Formats {fmt} is unsupported. Supported formats are {cfg["TrackFormats"].keys()}')
-            fmtopts = cfg['TrackFormats'][fmt]
-            self.audiotemplates.update({fmt: AudioStreamTemplate(codec=fmt,
-                                                                 channels=fmtopts.get('max_channels'),
-                                                                 bitrate=fmtopts.get('bitrate'),
-                                                                 sfilter=fmtopts.get('filter'))})
+        self._subtitestreamtemplate = SubtitleStreamTemplate(self.config['TrackFormats'],
+                                                             self.config['Containers'][target]['subtitle'][
+                                                                 'accepted_track_formats']
+                                                             )
 
-        self.subtitletemplates = {}
-
-        for fmt in cfg['Containers'][target]['subtitle'].get('accepted_track_formats'):
-            if fmt not in cfg['TrackFormats']:
-                raise MissingFormatError(
-                    f'Formats {fmt} is unsupported. Supported formats are {cfg["TrackFormats"].keys()}')
-            fmtopts = cfg['TrackFormats'][fmt]
-            self.audiotemplates.update({fmt: AudioStreamTemplate(codec=fmt,
-                                                                 channels=fmtopts.get('max_channels'),
-                                                                 bitrate=fmtopts.get('bitrate'),
-                                                                 sfilter=fmtopts.get('filter'))})
-
-    def parse_video_options(self, source, stream=0):
-        vencoder = None
-        streamfmt = self.video['transcode_to']
+    def create_streams(self, source, target) -> TargetContainer:
+        targetcontainer = TargetContainer(target)
 
         for videostream in source.videostreams:
-            if self.video['prefer_method'] == 'copy':
-                if videostream.codec in list(self.videotemplates.keys()):
-                    encoder_name = 'copy'
+
+            index = len(targetcontainer.videostreams) + 1 if targetcontainer.videostreams else 0
+
+            print(source.videostreams.index(videostream))
+
+            if self.video['prefer_method'] == 'copy' and videostream.codec in self._videostreamtemplate.codecs:
+                s = TargetVideoStream(index=index,
+                                      pix_fmt=videostream.pix_fmt,
+                                      bitrate=videostream.bitrate,
+                                      codec=videostream.codec,
+                                      width=videostream.width,
+                                      height=videostream.height,
+                                      level=videostream.level,
+                                      profile=videostream.profile,
+                                      sourceindex=videostream.index,
+                                      willtranscode=False)
+
+            elif self.video['prefer_method'] == 'override' and videostream.codec in self._videostreamtemplate.codecs:
+                s = self._videostreamtemplate.getStreamInfo(videostream, index)
+
+            else:
+                fmt = self.config['TrackFormats'][self.video['transcode_to']]
+                if fmt.get('pix_fmts'):
+                    pix_fmt = fmt['pix_fmts'][0]
                 else:
-                    encoder_name = self.config['TrackFormats'][streamfmt].get('encoder')
+                    pix_fmt = None
 
-            if self.video['prefer_method'] == 'transcode':
-                encoder_name = self.config['TrackFormats'][streamfmt].get('encoder')
+                s = TargetVideoStream(index=index,
+                                      codec=self.video['transcode_to'],
+                                      bitrate=fmt.get('max_bitrate'),
+                                      pix_fmt=pix_fmt,
+                                      width=fmt.get('max_width'),
+                                      height=fmt.get('max_height'),
+                                      profile=fmt.get('profile'),
+                                      level=fmt.get('level'),
+                                      sourceindex=videostream.index,
+                                      willtranscode=True)
 
-            if self.video['prefer_method'] == 'override' and videostream.codec in list(self.videotemplates.keys()):
-                if self.videotemplates[videostream.codec].conforms(videostream):
-                    encoder_name = 'copy'
+            targetcontainer.videostreams = s
+
+            for audiostream in source.audiostreams:
+                index = len(targetcontainer.audiostreams) + 1 if targetcontainer.audiostreams else 0
+
+                if audiostream.codec in self._audiostreamtemplate.codecs:
+                    s = self._audiostreamtemplate.getStreamInfo(audiostream, index)
+
+                    targetcontainer.audiostreams = s
+
+                for acodec in self.audio['force_create_tracks']:
+                    fmt = self.config['TrackFormats'][acodec]
+                    s = TargetAudioStream(index=index,
+                                          codec=acodec,
+                                          channels=fmt.get('max_channels') if acodec != audiostream.codec else min(
+                                              fmt.get('max_channels'), audiostream.channels),
+                                          bitrate=fmt.get('max_bitrate') if acodec != audiostream.codec else min(
+                                              fmt.get('max_bitrate'), audiostream.bitrate),
+                                          language=audiostream.language,
+                                          sourceindex=audiostream.index,
+                                          willtranscode=True)
+
+                    targetcontainer.audiostreams = s
+
+            for k in targetcontainer.getaudiotranscode():
+                if k in targetcontainer.audioNotTranscode():
+                    targetcontainer.audiostreams.remove(k)
+
+            for stream in source.subtitlestreams:
+                index = len(targetcontainer.subtitlestreams) + 1 if targetcontainer.subtitlestreams else 0
+                s = self._subtitestreamtemplate.getStreamInfo(stream, index)
+
+                targetcontainer.subtitlestreams = s
+
+            return targetcontainer
+
+    def g(self, sourcecontainer, targetcontainer):
+        encs = []
+
+        for stream in sourcecontainer.videostreams:
+            targetstreams = targetcontainer.getvideofromsource(stream.index)
+            for tgtstream in targetstreams:
+                if tgtstream == stream:
+                    enc = StreamFormatFactory.get(stream.codec).getEncoder('copy')({'map': tgtstream.sourceindex,
+                                                                                    'src_height': stream.height,
+                                                                                    'src_width': stream.width})
+                    encs.append(enc)
                 else:
-                    encoder_name = videostream.codec
+                    params = self.config['TrackFormats'][tgtstream.codec]
+                    enc = StreamFormatFactory.get(tgtstream.codec).getEncoder(params.get('encoder', 'default'))(
+                        {'map': tgtstream.sourceindex,
+                         'bitrate': tgtstream.bitrate,
+                         'profile': tgtstream.profile,
+                         'pix_fmt': tgtstream.pix_fmt,
+                         'level': tgtstream.level,
+                         'height': tgtstream.height,
+                         'width': tgtstream.width})
 
-            vencoder = StreamFormatFactory.get(videostream.codec).getEncoder(self.config['TrackFormats'][encoder_name].get('encoder'))
+                    # TODO: add mode and filter.
+                    if self.config['Encoders'].get(tgtstream.codec, None):
+                        encoderopts = self.config['Encoders'][tgtstream.codec]
+                        enc.add_options(encoderopts)
 
-        return vencoder
+                    encs.append(enc)
+
+        for stream in sourcecontainer.audiostreams:
+            targetstreams = targetcontainer.getaudiofromsource(stream.index)
+            for tgtstream in targetstreams:
+                if tgtstream == stream:
+                    enc = StreamFormatFactory.get(stream.codec).getEncoder('copy')({'map': tgtstream.sourceindex,
+                                                                                    'language': tgtstream.language})
+                    encs.append(enc)
+
+                else:
+                    params = self.config['TrackFormats'][tgtstream.codec]
+                    enc = StreamFormatFactory.get(tgtstream.codec).getEncoder(params.get('encoder', 'default'))(
+                        {'map': tgtstream.sourceindex,
+                         'bitrate': tgtstream.bitrate,
+                         'channels': tgtstream.channels,
+                         'language': tgtstream.language})
+
+                    if self.config['Encoders'].get(tgtstream.codec, None):
+                        encoderopts = self.config['Encoders'][tgtstream.codec]
+                        enc.add_options(encoderopts)
+
+                    encs.append(enc)
+
+        for stream in sourcecontainer.subtitlestreams:
+            targetstreams = targetcontainer.getsubtitlefromsource(stream.index)
+            for tgtstream in targetstreams:
+                if tgtstream == stream:
+                    enc = StreamFormatFactory.get(stream.codec).getEncoder('copy')({'map': tgtstream.sourceindex,
+                                                                                    'language': tgtstream.language})
+                    encs.append(enc)
+
+                else:
+                    params = self.config['TrackFormats'][tgtstream.codec]
+                    enc = StreamFormatFactory.get(tgtstream.codec).getEncoder(params.get('encoder', 'default'))(
+                        {'map': tgtstream.sourceindex,
+                         'language': tgtstream.language})
+
+                    if self.config['Encoders'].get(tgtstream.codec, None):
+                        encoderopts = self.config['Encoders'][tgtstream.codec]
+                        enc.add_options(encoderopts)
+
+                    encs.append(enc)
+
+        for enc in encs:
+            print(enc.parse_options())
+        return encs
+
 
 
 class ContainerFactory(object):
@@ -150,10 +256,6 @@ class UnsupportedContainer(Exception):
     pass
 
 
-class MissingFormatError(Exception):
-    pass
-
-
 if __name__ == '__main__':
     import configuration
 
@@ -164,6 +266,7 @@ if __name__ == '__main__':
     import converter.ffmpeg2
 
     ff = converter.ffmpeg2.FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
-    mediainfo = ff.probe('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
-    toto = op.parse_video_options(source=mediainfo, stream=0)
+    mediainfo = ff.probe('/Volumes/Downloads/Pentagon Papers.mkv')
+    toto = op.create_streams(mediainfo, 'mp4')
+    op.g(mediainfo, toto)
     print('yeah')

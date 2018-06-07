@@ -7,8 +7,8 @@ import os.path
 import re
 import signal
 from subprocess import Popen, PIPE
-from converter.streaminfo import MediaStreamInfo, MediaInfo, Parser
-import languagecode
+from info.parsers import ParserFactory
+from info import streaminfo
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -182,15 +182,12 @@ class FFMpeg(object):
             return None
 
         p = self._spawn([self.ffprobe_path,
-                         '-show_format', '-show_streams', fname])
+                         '-show_format', '-show_streams', '-hide_banner', '-print_format', 'json', fname])
         stdout_data, _ = p.communicate()
         stdout_data = stdout_data.decode(console_encoding, errors='ignore')
-        media = FFprobeParser(stdout_data).parse()
+        containerinfo = streaminfo.ContainerFactory.fromparser(ParserFactory.get('ffprobe', stdout_data))
 
-        #if not info.format.format and len(info.streams) == 0:
-        #    return None
-
-        return media
+        return containerinfo
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """
@@ -368,162 +365,7 @@ class FFMpeg(object):
             raise FFMpegError('Error creating thumbnail: %s' % stderr_data)
 
 
-class FFprobeParser(Parser):
-    """
-    Parse raw ffprobe output (key=value).
-    Returns a the appropriate MediaStreamInfo object
-    """
-    def __init__(self, output):
-        self.output = output
-        super(FFprobeParser, self).__init__()
 
-    def parse(self):
-        """
-        Parse raw ffprobe output.
-
-        """
-        media = MediaInfo()
-        in_format = False
-        current_stream = None
-
-        for line in self.output.split('\n'):
-            line = line.strip()
-            if line == '':
-                continue
-            elif line == '[STREAM]':
-                current_stream = MediaStreamInfo()
-            elif line == '[/STREAM]':
-                if current_stream.type:
-                    media.add_stream(current_stream.type, current_stream)
-                current_stream = None
-
-            elif line == '[FORMAT]':
-                in_format = True
-            elif line == '[/FORMAT]':
-                in_format = False
-
-            elif '=' in line:
-                k, v = line.split('=', 1)
-                k = k.strip()
-                v = v.strip()
-                if current_stream:
-                    stream_key, stream_value = self._parse_stream(k, v)
-                    if stream_key:
-                        if hasattr(current_stream, stream_key):
-                            setattr(current_stream, stream_key, stream_value)
-                elif in_format:
-                    format_key, format_value = self._parse_format(k, v)
-                    if format_key:
-                        setattr(media.format, format_key, format_value)
-
-        return media
-
-    def _parse_stream(self, key, val):
-
-        if key == 'index':
-            return 'index', self.parse_int(val)
-
-        elif key == 'codec_type':
-            return 'type', val.lower()
-
-        elif key == 'codec_name':
-            return 'codec',  val.lower()
-
-        elif key == 'codec_long_name':
-            return 'codec_desc', val.lower()
-
-        elif key == 'duration':
-            return 'duration', self.parse_float(val)
-
-        elif key == 'bit_rate':
-            return 'bitrate', self.parse_int(val, None)
-
-        elif key == 'width':
-            return 'width', self.parse_int(val)
-
-        elif key == 'height':
-            return 'height', self.parse_int(val)
-
-        elif key == 'channels':
-            return 'channels',  self.parse_int(val)
-
-        elif key == 'sample_rate':
-            return 'samplerate',  self.parse_float(val)
-
-        elif key == 'profile':
-            return 'profile', val.lower()
-
-        elif key == 'has_b_frames':
-            return 'bframes',  self.parse_int(val)
-
-        elif key == 'level':
-            return 'level', self.parse_float(val)
-
-        elif key == 'pix_fmt':
-            return 'pix_fmt', val.lower()
-
-        elif key == 'DISPOSITION:forced':
-            return 'disposition',  {'forced': self.parse_int(val)}
-
-        elif key == 'DISPOSITION:default':
-            return 'disposition', {'default': self.parse_int(val)}
-
-        if key.startswith('TAG:'):
-            key = key.split('TAG:')[1].lower()
-            value = val.lower().strip()
-            if key == 'language':
-                try:
-                    return 'metadata', {key: languagecode.validate(value)}
-                except:
-                    return 'metadata', {key: value}
-            else:
-                return 'metadata', {key: value}
-
-        return None, None
-
-#        if stream.type == 'audio':
-#            if key == 'avg_frame_rate':
-#                if '/' in val:
-#                    n, d = val.split('/')
-#                    n = self.parse_float(n)
-#                    d = self.parse_float(d)
-#                    if n > 0.0 and d > 0.0:
-#                        video_fps = float(n) / float(d)
-#                elif '.' in val:
-#                    video_fps = self.parse_float(val)
-#                    return 'fps', video_fps
-
-#        if stream.type == 'video':
-#            if key == 'r_frame_rate':
-#                if '/' in val:
-#                    n, d = val.split('/')
-#                    n = self.parse_float(n)
-#                    d = self.parse_float(d)
-#                    if n > 0.0 and d > 0.0:
-#                        stream.video_fps = float(n) / float(d)
-#                elif '.' in val:
-#                    stream.video_fps = self.parse_float(val)
-#                    return 'fps', video_fps
-
-
-
-
-    def _parse_format(self, key, val):
-        """
-        Parse raw ffprobe output (key=value).
-        """
-        if key == 'format_name':
-            return 'format_name', val
-        elif key == 'format_long_name':
-            return 'fullname', val
-        elif key == 'bit_rate':
-            return 'bitrate', self.parse_float(val, None)
-        elif key == 'duration':
-            return 'duration', self.parse_float(val, None)
-        elif key == 'size':
-            return 'filesize', self.parse_float(val, None)
-
-        return None, None
 
 if __name__ == '__main__':
     ffmpeg = FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
