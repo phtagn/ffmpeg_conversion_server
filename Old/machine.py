@@ -5,9 +5,8 @@ from transitions import Machine, State
 from converter import FFMpeg
 from containers import ContainerFactory, UnsupportedContainer
 from fetchers import FetchersFactory
-import tagger
+from taggers import tagger
 import shutil
-from guessit import guessit
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ class VideoProcessor(object):
     def __init__(self, request):
         # Check that we have everything we need
         conf = configuration.cfgmgr()
-        if request.get('configname', None):
+        if request.get_parser('configname', None):
             conf.load(request['configname'])
             self.config = conf.cfg
         else:
@@ -60,23 +59,23 @@ class VideoProcessor(object):
 
         self.showid = request['id']
         self.id_type = request['id_type']
-        self.season = request.get('season', None)
-        self.episode = request.get('episode', None)
+        self.season = request.get_parser('season', None)
+        self.episode = request.get_parser('episode', None)
         self.language = 'en'
 
         if 'target' in request:
             if request['target'].lower() not in ContainerFactory.containers:
                 log.critical(f'Target {request["target"]} not available. '
-                             f'Supported containers are {", ".join(ContainerFactory.containers.keys())}')
+                             f'Supported containers are {", ".join(SourceContainerFactory.containers.keys())}')
                 raise UnsupportedContainer
-            self.container = ContainerFactory.get(request['target'].lower(), self.config)
+            self.container = ContainerFactory.get_parser(request['target'].lower(), self.config)
         else:
             raise Exception('Target container (e.g. mp4) should be in the request')
 
-        self.ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
+        self.ffmpeg = FFMpeg(self.config['FFMPEG'].get_parser('ffmpeg'), self.config['FFMPEG'].get_parser('ffprobe'))
 
-        if self.config['File'].get('output_directory'):
-            outpath = self.config['File'].get('output_directory')
+        if self.config['File'].get_parser('output_directory'):
+            outpath = self.config['File'].get_parser('output_directory')
         else:
             outpath = self.indir
 
@@ -109,7 +108,7 @@ class VideoProcessor(object):
         ftch = FetchersFactory.getfetcher(self.config, self.showid, self.id_type, season=self.season, episode=self.episode)
         tags = ftch.gettags()
 
-        if tags.poster_url and self.config['Tagging'].get('download_artwork') is True:
+        if tags.poster_url and self.config['Tagging'].get_parser('download_artwork') is True:
             posterfile = ftch.downloadArtwork(tags.poster_url)
         else:
             posterfile = None
@@ -126,8 +125,8 @@ class VideoProcessor(object):
                 f(self.fulloutpath)
 
     def do_deploy(self):
-        if self.config['File'].get('copy_to'):
-            for d in self.config['File'].get('copy_to'):
+        if self.config['File'].get_parser('copy_to'):
+            for d in self.config['File'].get_parser('copy_to'):
                 if os.path.isdir(d):
                     if os.access(d, os.W_OK):
                         try:
@@ -139,8 +138,8 @@ class VideoProcessor(object):
                 else:
                     log.error('Path %s is not a directory', d)
 
-        if self.config['File'].get('move_to'):
-            d = self.config['File'].get('movet_to')
+        if self.config['File'].get_parser('move_to'):
+            d = self.config['File'].get_parser('movet_to')
             if os.path.isdir(d):
                 if os.access(d, os.W_OK):
                     try:

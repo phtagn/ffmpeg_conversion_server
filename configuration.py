@@ -1,6 +1,6 @@
 from configobj import ConfigObj
 from configobj import flatten_errors
-from typing import Union, Dict, List
+from typing import Union
 import validate
 import logging
 from defaultconfig import configspec
@@ -100,7 +100,7 @@ class cfgmgr(object):
             return output
 
         for section in self._usercfg['Containers']:
-            print(self._usercfg['Containers'][section]['video'])
+
             # Make sure that vodecs are only mentionned once, and that there are no aliases the program would not understand
 
             self._usercfg['Containers'][section]['video']['accepted_track_formats'] = getalias(

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from typing import Dict, Union
-
+import logging
+log = logging.getLogger(__name__)
 
 class BaseEncoder(object):
     """
@@ -36,6 +37,8 @@ class BaseEncoder(object):
                         self.safeopts[k] = typ(v)
                     except:
                         pass
+                else:
+                    log.debug('%s not one of %s for %s, rejected', k, " ".join(self.encoder_options), self.__class__.__name__)
 
 
 class AudioEncoder(BaseEncoder):
@@ -255,13 +258,12 @@ class VideoEncoder(BaseEncoder):
         'src_height': int,
         'filter': str,
         'pix_fmt': str,
-        'map': int
+        'map': int,
+        'quality': int
     }
-    defaults = AudioEncoder.defaults.copy()
-    defaults.update({'quality': 'integer(default=5)'})
 
     def _aspect_corrections(self, sw, sh, w, h, mode):
-        # If we don't have source info, we don't try to calculate
+        # If we don't have source parsers, we don't try to calculate
         # aspect corrections
         if not sw or not sh:
             return w, h, None
@@ -789,8 +791,8 @@ class H264Codec(VideoEncoder):
 
     defaults = VideoEncoder.defaults.copy()
     defaults.update({'preset': 'string(default=None)',
-                     'crf': 'integer(default=23)',
-                     'tune': 'string(default=None)'
+                     'tune': 'string(default=None)',
+                     'crf': 'pass'
                      })
 
     def __init__(self, opts) -> None:
@@ -822,8 +824,8 @@ class H264Codec(VideoEncoder):
 
         if 'preset' in self.safeopts:
             optlist.extend(['-preset', self.safeopts['preset']])
-        if 'quality' in self.safeopts:
-            optlist.extend(['-crf', str(self.safeopts['quality'])])
+        if 'crf' in self.safeopts:
+            optlist.extend(['-crf', str(self.safeopts['crf'])])
         if 'profile' in self.safeopts:
             optlist.extend(['-profile:v', self.safeopts['profile']])
         if 'level' in self.safeopts:

@@ -2,10 +2,12 @@ import configuration
 import logging
 import os
 from transitions import Machine, State
-from converter import FFMpeg
-from containers import ContainerFactory, UnsupportedContainer
-from fetchers import FetchersFactory
-import tagger
+from converter.ffmpeg import FFMpeg
+from converter.target import TargetContainerFactory
+from converter.optiongenerator import OptionGenerator
+from fetchers.fetchers import FetchersFactory
+
+from taggers import tagger
 import shutil
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
@@ -33,12 +35,9 @@ class VideoProcessor(object):
             raise IOError(f'File {path} does not exist')
 
         self._tagging_info = tagging_info
-
-        if target.lower() not in ContainerFactory.containers:
-            log.critical(f'Target {target} not available. '
-                        f'Supported containers are {", ".join(ContainerFactory.containers.keys())}')
-            raise UnsupportedContainer
-        self._container = ContainerFactory.get(target.lower(), self.config)
+        self.target = target
+        self.container = None
+        self._ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
 
     @property
     def config(self):
@@ -59,17 +58,13 @@ class VideoProcessor(object):
         return ext[1:]
 
     @property
-    def container(self):
-        return self._container
-
-    @property
     def fulloutpath(self):
         if self.config['File'].get('output_directory'):
             outpath = self.config['File'].get('output_directory')
         else:
             outpath = self.indir
 
-        fulloutpath = os.path.join(outpath, self.infile + self.container.extension)
+        fulloutpath = os.path.join(outpath, self.infile + '.mp4')
 
         if fulloutpath == self.infile:
             fulloutpath += '.working'
@@ -79,13 +74,6 @@ class VideoProcessor(object):
     @property
     def tagging_info(self):
         return self._tagging_info
-
-    @property
-    def fileinfo(self):
-        if not self._fileinfo:
-            self._fileinfo = self.ffmpeg.probe(self.infile)
-
-        return self._fileinfo
 
     @property
     def showid(self):
@@ -105,7 +93,7 @@ class VideoProcessor(object):
 
     @property
     def ffmpeg(self):
-        return FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
+        return self._ffmpeg
 
     @property
     def needtagging(self) -> bool:
@@ -116,9 +104,6 @@ class VideoProcessor(object):
 
     @property
     def needprocessing(self) -> bool:
-        if self.container.ffmpeg_format in self.fileinfo.format.format and not self.container.process_same:
-            return False
-        else:
             return True
 
     @property
@@ -134,11 +119,14 @@ class VideoProcessor(object):
         return True
 
     def do_process(self):
-        self.container.processstreams(self.fileinfo)
+        sourcecontainer = self.ffmpeg.probe(self.infile)
+        self.container = TargetContainerFactory(self.config, self.target).build_target_container(sourcecontainer)
+
 
     def do_convert(self):
-        opts = self.container.parse_options()
-        for timecode in self.ffmpeg.convert(self.infile, self.fulloutpath, opts, preopts=self.container.preopts, postopts=self.container.postopts):
+
+        opts = OptionGenerator(self.config).get_options(self.container)
+        for timecode in self.ffmpeg.convert(self.infile, self.fulloutpath, opts, preopts=None, postopts=None):
             print(timecode)
 
     def do_tag(self):
@@ -177,7 +165,7 @@ class VideoProcessor(object):
                     log.error('Path %s is not a directory', d)
 
         if self.config['File'].get('move_to'):
-            d = self.config['File'].get('movet_to')
+            d = self.config['File'].get('move_to')
             if os.path.isdir(d):
                 if os.access(d, os.W_OK):
                     try:
@@ -226,8 +214,8 @@ if __name__ == '__main__':
     id_type = 'tvdb_id'
 
     infile = '/Users/jon/Downloads/family.guy.s16e19.720p.web.x264-tbs.mkv'
-    configname = 'testouille.ini'
-    target = 'mkv'
+    configname = 'defaults.ini'
+    target = 'mp4'
     info = {'id': showid,
             'id_type': id_type,
             'season': 16,

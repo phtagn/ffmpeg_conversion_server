@@ -44,17 +44,17 @@ class FetchersFactory(object):
     @classmethod
     def getfetcher(cls, cfg, showid, id_type, season=None, episode=None):
         if season is not None:
-            return cls.TVFetchers[cfg['Tagging'].get('preferred_show_tagger')](showid,
-                                                                             id_type,
-                                                                             season=season,
-                                                                             episode=episode,
-                                                                             language=cfg['Tagging'].get('tag_language'))
+            return cls.TVFetchers[cfg['Tagging'].get_parser('preferred_show_tagger')](showid,
+                                                                                      id_type,
+                                                                                      season=season,
+                                                                                      episode=episode,
+                                                                                      language=cfg['Tagging'].get_parser('tag_language'))
         else:
-            return cls.MovieFetchers[cfg['Tagging'].get('preferred_movie_tagger')](showid,
-                                                                                   id_type,
-                                                                                   season=None,
-                                                                                   episode=None,
-                                                                                   language=cfg['Tagging'].get('tag_language'))
+            return cls.MovieFetchers[cfg['Tagging'].get_parser('preferred_movie_tagger')](showid,
+                                                                                          id_type,
+                                                                                          season=None,
+                                                                                          episode=None,
+                                                                                          language=cfg['Tagging'].get_parser('tag_language'))
 
 class IFetcher(metaclass=ABCMeta):
     ftype = []
@@ -165,7 +165,7 @@ class FetcherTmdbTV(FetcherTmdb):
 
         if showdata:
 
-            # Show info
+            # Show parsers
             tags.season_total = showdata['number_of_seasons']
             tags.show = showdata['name']
 
@@ -176,7 +176,7 @@ class FetcherTmdbTV(FetcherTmdb):
 
             tags.genre = showdata['genres'][0]['name']
 
-            # Season info
+            # Season parsers
             tags.poster_url = self._getposterpath(fetcher)
 
             tags.episode_number = episode

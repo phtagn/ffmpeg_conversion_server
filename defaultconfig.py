@@ -1,12 +1,12 @@
 # coding=utf-8
-from streamgenerator import TargetContainerGenerator
 from converter.streamformats import StreamFormatFactory
 from converter.encoders import EncoderFactory
 from configobj import ConfigObj
 
 
-#containersettings = {ctn.name: ctn.defaults for ctn in ContainerFactory.containers.values()}
-containersettings = {'mp4': {
+#containersettings = {ctn.name: ctn.defaults for ctn in SourceContainerFactory.containers.values()}
+
+generic_container_settings = {
         'video': {
             'prefer_method': 'option(copy, transcode, override, default=copy)',
             'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
@@ -23,12 +23,18 @@ containersettings = {'mp4': {
 
         'subtitle': {
             'accepted_track_formats': 'force_list(default=list(mov_text))',
+            'transcode_to': 'string(default=mov_text)'
         },
 
         'process_same': 'boolean(default=False)',
         'preopts': 'string(default=None)',
         'postopts': 'string(default=None)'
-    }}
+    }
+
+supported_containers = ['mp4', 'mkv']
+
+containersettings = {supported_container: generic_container_settings for supported_container in supported_containers}
+
 #encosettings = {'video': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values()},
 #                 'audio': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values()},
 #                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values()}

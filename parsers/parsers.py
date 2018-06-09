@@ -1,10 +1,11 @@
 import json
 import locale
 import logging
-import languagecode
 import abc
 from abc import ABCMeta
-from typing import Type, Union
+from typing import Union
+
+import languagecode
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -17,7 +18,14 @@ class IParser(metaclass=ABCMeta):
     Most properties are self explanatory and have type hinting, but some of them have further comments.
     """
 
-    def __init__(self, output):
+    @property
+    @abc.abstractmethod
+    def streams(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def format(self):
         pass
 
     @abc.abstractmethod
@@ -88,14 +96,35 @@ class IParser(metaclass=ABCMeta):
         pass
 
 
-class FFprobeParser(object):
+class ParserFactory(object):
+
+    @staticmethod
+    def get_parser(parser: str, output) -> IParser:
+        if parser == 'ffprobe':
+            return FFprobeParser(output)
+        else:
+            raise UnsupportedParser
+
+
+class UnsupportedParser(Exception):
+    pass
+
+
+class FFprobeParser(IParser):
 
     def __init__(self, jsonoutput):
         output = json.loads(jsonoutput)
+        self._streams = output['streams']
+        self._format = output['format']
 
-        super(FFprobeParser, self).__init__()
-        self.streams = output['streams']
-        self.format = output['format']
+
+    @property
+    def streams(self):
+        return self._streams
+
+    @property
+    def format(self):
+        return self._format
 
     def nb_of_streams(self) -> int:
         return int(self.format.get('nb_streams', 0))
@@ -143,22 +172,7 @@ class FFprobeParser(object):
         return self.streams[index].get('profile', '')
 
     def samplerate(self, index):
-        return int(self.streams[index].get('saloke_rate', 0))
+        return int(self.streams[index].get('sample_rate', 0))
 
     def codec_type(self, index: Union[int, str]) -> Union[str, None]:
         return self.streams[index].get('codec_type', None)
-
-
-
-class ParserFactory(object):
-
-    @staticmethod
-    def get(parser: str, output) -> IParser:
-        if parser == 'ffprobe':
-            return FFprobeParser(output)
-        else:
-            raise UnsupportedParser
-
-class UnsupportedParser(Exception):
-    pass
-

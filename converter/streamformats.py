@@ -21,6 +21,8 @@ class BaseStreamFormat(object):
             return cls.encoders[cls.default_encoder]
         elif encoder in cls.encoders:
             return cls.encoders[encoder]
+        else:
+            raise Exception(f'Encoder {encoder} not in {", ".join(cls.encoders)}')
 
 
 class VideoStreamFormat(BaseStreamFormat):
@@ -100,7 +102,7 @@ class Mpeg2StreamFormat(VideoStreamFormat):
 class H264StreamFormat(VideoStreamFormat):
     encoders = {'copy': encoders.VideoCopyEncoder,
                 'h264': encoders.H264Codec,
-                'h264sqv': encoders.H264QSV,
+                'h264qsv': encoders.H264QSV,
                 'h264vaapi': encoders.H264VAAPI,
                 'nvenc_h264': encoders.NVEncH264
                 }
@@ -262,6 +264,7 @@ class StreamFormatFactory(object):
         'flv':  FlvStreamFormat,
         'mpeg1': Mpeg1StreamFormat,
         'mpeg2': Mpeg2StreamFormat,
+
         'vorbis': VorbisStreamFormat,
         'aac': AacStreamFormat,
         'mp3': Mp3StreamFormat,
@@ -270,6 +273,7 @@ class StreamFormatFactory(object):
         'eac3': Eac3StreamFormat,
         'dts': DtsStreamFormat,
         'flac': FlacStreamFormat,
+
         'mov_text': MovtextStreamFormat,
         'srt': SrtStreamFormat,
         'ssa': SSAStreamFormat,
@@ -280,7 +284,7 @@ class StreamFormatFactory(object):
     }
 
     @classmethod
-    def get(cls, fmt):
+    def get_format(cls, fmt):
         if fmt not in cls.formats:
             raise MissingFormatExcetption(f'Format {fmt} is unsupported. Available formats are {", ".join(cls.formats.keys())}')
 

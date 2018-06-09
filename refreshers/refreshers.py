@@ -66,21 +66,21 @@ class SickRage(Refresher):
 
     def __init__(self, cfg):
         conf = cfg['Refreshers'][SickRage.name]
-        self.host = conf.get('host')
-        if conf.get('ssl'):
+        self.host = conf.get_parser('host')
+        if conf.get_parser('ssl'):
             self.protocol = 'https://'
         else:
             self.protocol = 'http://'
-        self.port = cfg.get('port')
-        self.username = cfg.get('username')
-        self.password = cfg.get('password')
+        self.port = cfg.get_parser('port')
+        self.username = cfg.get_parser('username')
+        self.password = cfg.get_parser('password')
 
-        if not cfg.get('webroot'):
+        if not cfg.get_parser('webroot'):
             self.webroot = '/'
-        elif cfg.get('webroot').endswith('/'):
-            self.webroot = cfg.get('webroot')
+        elif cfg.get_parser('webroot').endswith('/'):
+            self.webroot = cfg.get_parser('webroot')
         else:
-            self.webroot = f'{cfg.get("webroot")}/'
+            self.webroot = f'{cfg.get_parser("webroot")}/'
 
 
         self.url = f'{self.protocol}{self.host}:{self.port}/{self.webroot}{self.api_key}'
@@ -141,7 +141,7 @@ class Plex(Refresher):
 
     def __init__(self, settings):
         super(Plex, self).__init__(settings)
-        self.token = getattr(settings, Plex.name).get('token', '')
+        self.token = getattr(settings, Plex.name).get_parser('token', '')
 
     def refresh(self, param):
         if not self.token:

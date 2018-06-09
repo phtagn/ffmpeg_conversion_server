@@ -1,37 +1,76 @@
 # coding=utf-8
-from info.streaminfo import Container, SourceVideoStream, SourceAudioStream, SourceSubtitleStream, TargetAudioStream, \
-    TargetVideoStream, TargetSubtitleStream, TargetContainer
+"""
+This module contains the logic to build targetcontainers with the appropriate streams from a sourcecontainer
+"""
+from abc import ABCMeta, abstractmethod
+from converter.streams import AudioStream, VideoStream, SubtitleStream, Container
+from converter.source import SourceVideoStream, SourceAudioStream, SourceSubtitleStream
+from converter.streamtemplates import TemplateFactory, VideoStreamTemplate, AudioStreamTemplate, SubtitleStreamTemplate
 
 import logging
-from abc import ABCMeta, abstractmethod
 log = logging.getLogger(__name__)
 
-class TemplateFactory(object):
-    """Returns a template object instantiated with the options from the config file"""
-    @staticmethod
-    def get_template(cfg, typ, trackformat):
+# TODO: build bad codecs logic. There are some codecs that we cannot transcode from.
+badtranscodecodecs = []
 
-        if trackformat in cfg['TrackFormats']:
-            fmt = cfg['TrackFormats'][trackformat]
-            if typ == 'video':
-                return VideoStreamTemplate(codec=trackformat,
-                                           pix_fmts=fmt.get('pix_fmts'),
-                                           max_bitrate=fmt.get('max_bitrate'),
-                                           max_height=fmt.get('max_height'),
-                                           max_width=fmt.get('max_width'),
-                                           profiles=fmt.get('profiles'),
-                                           max_level=fmt.get('max_level'))
-            elif typ == 'audio':
-                return AudioStreamTemplate(codec=trackformat,
-                                           max_channels=fmt.get('max_channels'),
-                                           max_bitrate=fmt.get('max_bitrate'))
 
-            elif typ == 'subtitle':
-                return SubtitleStreamTemplate(codec=trackformat)
+class TargetContainer(Container):
+
+    def __init__(self, format):
+        super(TargetContainer, self).__init__(format)
+
+    def add_stream(self, stream) -> bool:
+        assert isinstance(stream, (TargetVideoStream,TargetAudioStream, TargetSubtitleStream))
+
+        if stream.type == 'video':
+            streams = self.videostreams
+        elif stream.type == 'audio':
+            streams = self.audiostreams
+        elif stream.type == 'subtitle':
+            streams = self.subtitlestreams
         else:
-            raise Exception('No such format')
+            raise Exception(f'{stream.type} not one of audio, video, subtitle')
 
-class TargetContainerGenerator(object):
+        # Do not add streams if not supported by container
+        if self.format.supports(stream.codec, stream.type):
+            # Avoid adding multiple identical streams for TargetStreams
+            try:
+                idx = streams.index(stream)
+                if stream.willtranscode is True and streams[idx].willtranscode is False:
+                    streams.pop(idx)
+                    streams.append(stream)
+            except ValueError:
+                streams.append(stream)
+
+
+
+class TargetAudioStream(AudioStream):
+
+    def __init__(self, codec, channels, bitrate, language, sourceindex, willtranscode):
+        super(TargetAudioStream, self).__init__(codec, channels, bitrate, language)
+        self.sourceindex = sourceindex
+        self.willtranscode = willtranscode
+
+
+class TargetVideoStream(VideoStream):
+
+    def __init__(self, codec: str, pix_fmt: str, bitrate: int, height: int, width: int, profile: str, level: float, sourceindex: int, willtranscode: bool, src_height: int, src_width: int):
+        super(TargetVideoStream, self).__init__(codec, pix_fmt, bitrate, height, width, profile, level)
+        self.sourceindex = sourceindex
+        self.willtranscode = willtranscode
+        self.src_width = src_width
+        self.src_height = src_height
+
+
+class TargetSubtitleStream(SubtitleStream):
+
+    def __init__(self, codec, language, sourceindex, willtranscode):
+        super(TargetSubtitleStream, self).__init__(codec, language)
+        self.sourceindex = sourceindex
+        self.willtranscode = willtranscode
+
+
+class TargetContainerFactory(object):
     """Build a TargetContainer object with the proper streams"""
 
     def __init__(self, config, typ):
@@ -53,13 +92,18 @@ class TargetContainerGenerator(object):
 
 
             self.audio_accepted_languages = config['Languages'].get('audio')
-            self.subtite_accepted_languages = config['Languages'].get('subtitle')
+            self.subtitle_accepted_languages = config['Languages'].get('subtitle')
+            self.subtitle_transcode_to = cfg['subtitle'].get('transcode_to')
             self.config = config
 
         else:
             raise Exception('Unsupported container type')
 
-    def build_target_container(self, sourcecontainer):
+    def build_target_container(self, sourcecontainer) -> TargetContainer:
+        """Builds a target container from the sourcecontainer and the options provided by the user.
+        It takes all of the stream types in order of video, audio and subtitle, and generates a TargetContainer
+        that conforms with the options"""
+
         assert isinstance(sourcecontainer, Container)
         ctn = TargetContainer(self.type)
 
@@ -97,8 +141,16 @@ class TargetContainerGenerator(object):
                 s = StreamGeneratorFactory.copystream(stream)
                 ctn.add_stream(s)
 
-        return ctn
+        subtitlestreams = filterlanguages(sourcecontainer.subtitlestreams, self.subtitle_accepted_languages, relax=False)
+        for stream in subtitlestreams:
+            if stream.codec in self.subtitle_accepted_formats:
+                s = StreamGeneratorFactory.copystream(stream)
+            else:
+                template = TemplateFactory.get_template(self.config, stream.type, self.subtitle_transcode_to)
+                s = StreamGeneratorFactory.conformtotemplate(stream, template)
+            ctn.add_stream(s)
 
+        return ctn
 
 
 class IStreamGenerator(metaclass=ABCMeta):
@@ -109,15 +161,18 @@ class IStreamGenerator(metaclass=ABCMeta):
     @staticmethod
     @abstractmethod
     def copystream(stream):
+        """Copies the sourcestream into a targetstream"""
         pass
 
     @staticmethod
     @abstractmethod
     def conformtotemplate(stream, template):
+        """Takes a template and sets the options of the"""
         pass
 
 
 class StreamGeneratorFactory(IStreamGenerator):
+    """Simple factory that returns the appropriate StreamGenerator from the type of the input stream."""
 
     @staticmethod
     def copystream(stream):
@@ -151,7 +206,9 @@ class VideoStreamGenerator(IStreamGenerator):
                                  profile=stream.profile,
                                  level=stream.level,
                                  sourceindex=stream.index,
-                                 willtranscode=False)
+                                 willtranscode=False,
+                                 src_height=stream.height,
+                                 src_width=stream.width)
 
     @staticmethod
     def conformtotemplate(stream, template):
@@ -167,7 +224,9 @@ class VideoStreamGenerator(IStreamGenerator):
                                      profile=template.profiles[0] if template.profiles else None,
                                      level=template.max_level if template.max_level else None,
                                      sourceindex=stream.index,
-                                     willtranscode=True)
+                                     willtranscode=True,
+                                     src_width=stream.width,
+                                     src_height=stream.height)
 
         else:
 
@@ -190,11 +249,11 @@ class VideoStreamGenerator(IStreamGenerator):
                 width = template.max_width
                 willtranscode = True
 
-            if template.max_bitrate and stream.bitrate and stream.bitrate > template.max_bitrate * 1000:
+            if template.max_bitrate and stream.bitrate and stream.bitrate > template.max_bitrate:
                 bitrate = template.max_bitrate
                 willtranscode = True
             else:
-                bitrate = stream.bitrate / 1000
+                bitrate = stream.bitrate
 
             if template.max_level and stream.level and stream.level > template.max_level:
                 level = template.max_level
@@ -217,7 +276,9 @@ class VideoStreamGenerator(IStreamGenerator):
                                      level=level,
                                      profile=profile,
                                      sourceindex=stream.index,
-                                     willtranscode=willtranscode)
+                                     willtranscode=willtranscode,
+                                     src_height=stream.height,
+                                     src_width=stream.width)
 
 
 class AudioStreamGenerator(IStreamGenerator):
@@ -267,7 +328,6 @@ class AudioStreamGenerator(IStreamGenerator):
                                  willtranscode=willtranscode)
 
 
-
 class SubtitleStreamGenerator(IStreamGenerator):
     @staticmethod
     def copystream(stream) -> TargetSubtitleStream:
@@ -297,6 +357,9 @@ class SubtitleStreamGenerator(IStreamGenerator):
 
 
 def filterlanguages(streamlist, languagelist, relax=False):
+    """Helper function to select tracks based on language.
+    If relax is True, then if the selection is empty, the function will
+    return the original list of streams"""
     validstreams = []
     for stream in streamlist:
         if stream.language in languagelist:
@@ -308,52 +371,7 @@ def filterlanguages(streamlist, languagelist, relax=False):
         return validstreams
 
 
-class VideoStreamTemplate(object):
-    def __init__(self,
-                 codec: str,
-                 pix_fmts: list,
-                 max_bitrate: int,
-                 max_height: int,
-                 max_width: int,
-                 profiles: list,
-                 max_level: int):
-
-        self.codec = codec
-        self.pix_fmts = pix_fmts
-        self.max_bitrate = max_bitrate
-        self.max_height = max_height
-        self.max_width = max_width
-        self.profiles = profiles
-        self.max_level = max_level
-
-
-class AudioStreamTemplate(object):
-    def __init__(self, codec: str, max_channels: int, max_bitrate: int):
-        self.codec = codec
-        self.max_channels = max_channels
-        self.max_bitrate = max_bitrate
-
-
-class SubtitleStreamTemplate(object):
-    def __init__(self, codec: str):
-        self.codec = codec
-
-
-
 class MissingFormatError(Exception):
     pass
 
-if __name__ == '__main__':
-    import configuration
-    import converter.ffmpeg2
-    cfgmgr = configuration.cfgmgr()
-    cfgmgr.load('defaults.ini')
-    cfg = cfgmgr.cfg
-    Tg = TargetContainerGenerator(cfg, 'mp4')
 
-
-    ff = converter.ffmpeg2.FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
-    SourceContainer = ff.probe('/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mp4')
-    TargetContainer = Tg.build_target_container(sourcecontainer=SourceContainer)
-
-    print('yeah')

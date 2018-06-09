@@ -3,7 +3,7 @@
 import os
 from converter.encoders import video_codec_list, audio_codec_list, subtitle_codec_list
 from converter.formats import format_list
-from converter.ffmpeg import FFMpeg, FFMpegError, FFMpegConvertError
+from Old.ffmpeg import FFMpeg
 
 
 class ConverterError(Exception):
@@ -169,7 +169,7 @@ class Converter(object):
 
         Options should be passed as a dictionary. The keys are:
             * format (mandatory, string) - container format; see
-              formats.BaseFormat for list of supported formats
+              formats.ContainerFormat for list of supported formats
             * audio (optional, dict) - audio codec and options; see
               avcodecs.AudioEncoder for list of supported options
             * video (optional, dict) - video codec and options; see

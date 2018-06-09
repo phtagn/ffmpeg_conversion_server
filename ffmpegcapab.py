@@ -3,10 +3,10 @@ import locale
 
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
 
-import converter.ffmpeg
+import Old.ffmpeg
 import re
 
-prog = converter.ffmpeg.FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
+prog = Old.ffmpeg.FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 p = prog._spawn(['/usr/local/bin/ffmpeg', '-v', 0, '-codecs'])
 stdout, _ = p.communicate()
 stdout = stdout.decode(console_encoding, errors='ignore')
