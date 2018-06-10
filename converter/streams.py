@@ -57,7 +57,9 @@ class VideoStream(Stream):
 
         return False
 
-
+    def __str__(self):
+        return f'Codec: {self.codec}\n' \
+        f'Bitrate: {self.bitrate}'
 class AudioStream(Stream):
 
     def __init__(self, codec, channels, bitrate, language):

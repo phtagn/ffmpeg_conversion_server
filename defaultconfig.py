@@ -67,7 +67,7 @@ defaultconfig = {
     },
 
     'File': {
-        'output_directory': 'string(default=None)',
+        'work_directory': 'string(default=None)',
         'copy_to': 'force_list(default=None)',
         'move_to': 'string(default=None)',
         'delete_original': 'boolean(default=False)',

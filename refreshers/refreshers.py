@@ -1,15 +1,13 @@
 from __future__ import print_function
-
-import logging
 import os
 import sys
 from abc import ABCMeta, abstractmethod
-
 import requests
+import logging
 
-from readSettings import ReadSettings
 
 log = logging.getLogger(__name__)
+
 
 class RefreshError(Exception):
     def __init__(self, name, url, error):
@@ -28,26 +26,13 @@ class RefreshError(Exception):
         return self.__repr__()
 
 
-class RefresherFactory(object):
-    Refreshers = {}
-
-
-    @classmethod
-    def register(cls, refresher):
-        cls.Refreshers = {refresher.name: refresher}
-
-    @classmethod
-    def GetRefresher(cls, name, cfg):
-        return cls.Refreshers[name](cfg['Refreshers'][name])
-
-
-class Refresher(object):
-    __metaclass__ = ABCMeta
+class Refresher(metaclass=ABCMeta):
     name = ''
     defaults = {'host': 'string(default=localhost)',
                 'ssl': 'boolean(default=False',
                 'webroot': 'string(default=None)',
                 'refresh': 'boolean(default=False)'}
+
 
     @abstractmethod
     def refresh(self, param):
@@ -55,134 +40,138 @@ class Refresher(object):
 
 
 class SickRage(Refresher):
-    name = 'Sickrage'
+    name = 'sickrage'
     defaultport = '8081'
     defaults = Refresher.defaults.copy()
     defaults.update({'port': 'integer(default=8081)',
-                     'username': 'string(default=None)',
-                     'password': 'string(default=None)',
                      'api_key': 'string(default=None)'
                      })
 
-    def __init__(self, cfg):
-        conf = cfg['Refreshers'][SickRage.name]
-        self.host = conf.get_parser('host')
-        if conf.get_parser('ssl'):
+    def __init__(self, **kwargs):
+        essential = ['api_key', 'host', 'port']
+        self.api_key = None
+        self.host = None
+        self.port = None
+
+        for k in essential:
+            try:
+                setattr(self, k, kwargs[k])
+            except:
+                raise Exception(f'{" ,".join(essential)} not present')
+
+        if 'ssl' in kwargs:
             self.protocol = 'https://'
         else:
             self.protocol = 'http://'
-        self.port = cfg.get_parser('port')
-        self.username = cfg.get_parser('username')
-        self.password = cfg.get_parser('password')
 
-        if not cfg.get_parser('webroot'):
-            self.webroot = '/'
-        elif cfg.get_parser('webroot').endswith('/'):
-            self.webroot = cfg.get_parser('webroot')
+
+        if kwargs.get('webroot', None):
+            if kwargs['webroot'].endswith('/'):
+                self.webroot = kwargs['webroot']
+            else:
+                self.webroot = f'{kwargs["webroot"]}/'
         else:
-            self.webroot = f'{cfg.get_parser("webroot")}/'
+            self.webroot = '/'
+
+        self.url = f'{self.protocol}{self.host}:{self.port}{self.webroot}api/{self.api_key}'
 
 
-        self.url = f'{self.protocol}{self.host}:{self.port}/{self.webroot}{self.api_key}'
-
-
-    def refresh(self):
-        if not self.apikey:
+    def refresh(self, showid):
+        if not self.api_key:
             raise RefreshError('Sickrage', '', 'Sickrage api key not defined')
 
         payload = {'cmd': 'show.refresh', 'tvdbid': showid}
-        # + ":" + self.port
-        url = self.protocol + self.host + self.web_root + "api/" + self.apikey + '/'
 
         try:
-            r = requests.get(url, params=payload, stream=True, verify=True)
+            r = requests.get(self.url, params=payload, stream=True, verify=True)
             if r.status_code != 200:
                 raise Exception('Sickrage', 'url', r.status_code)
         except Exception as e:
-            raise RefreshError('Sickrage', url, e.message)
+            raise RefreshError('Sickrage', self.url, e.message)
 
         if r.json()['result'] == 'success':
             print('Refresh successful')
             return True
 
 
-Refresher.register(SickRage)
+class Plex(Refresher):
+    name = 'plex'
 
+    def __init__(self, **kwargs):
+        essential = ['token', 'host', 'port']
+        self.token = None
+        self.host = None
+        self.port = None
 
-class SickBeard(Refresher):
-    name = 'Sickbeard'
-    defaultport = 8081
-
-    def __init__(self, settings):
-        super(SickBeard, self).__init__(settings)
-        self.username = getattr(settings, SickBeard.name)['user']
-        self.password = getattr(settings, SickBeard.name)['pass']
-
-    def refresh(self, showid):
-        if not self.apikey:
-            raise RefreshError('Sickbeard', '', 'Sickbeard api key not defined')
-
-        import urllib
-        url = self.protocol + self.host + ":" + self.port + self.web_root + "api/" + self.apikey + "/?cmd=show.refresh&tvdbid=" + str(
-            showid)
+        for k in essential:
+            try:
+                setattr(self, k, kwargs[k])
+            except:
+                raise Exception(f'{" ,".join(essential)} not present')
 
         try:
-            urllib.urlopen(url)
-        except Exception as e:
-            raise RefreshError('Sickbeard', url, e.message)
+            if kwargs['ssl'] is True:
+                self.protocol = 'https://'
+            else:
+                self.protocol = 'http://'
+        except KeyError:
+            self.protocol = 'http://'
 
+        if kwargs.get('webroot', None):
+            if kwargs['webroot'].endswith('/'):
+                self.webroot = kwargs['webroot']
+            else:
+                self.webroot = f'{kwargs["webroot"]}/'
+        else:
+            self.webroot = '/'
 
-Refresher.register(SickBeard)
+        self.url = f'{self.protocol}{self.host}:{self.port}{self.webroot}library/sections'
 
+    def refresh(self, refresh_what: str):
+        """
+        :param refresh_what: str, can be 'movie' or 'show
+        :return: None
+        """
 
-class Plex(Refresher):
-    name = 'Plex'
-    defaultport = 32400
-
-    def __init__(self, settings):
-        super(Plex, self).__init__(settings)
-        self.token = getattr(settings, Plex.name).get_parser('token', '')
-
-    def refresh(self, param):
-        if not self.token:
-            raise RefreshError('Plex', '', 'Plex token not defined')
 
         from xml.dom import minidom
-        base_url = '{protocol}{host}:{port}/library/sections'.format(protocol=self.protocol, host=self.host,
-                                                                     port=self.port)
-        refresh_url = '%s/%%s/refresh' % base_url
+
+        refresh_url = '%s/%%s/refresh' % self.url
         payload = {'X-Plex-Token': self.token}
+
         try:
-            r = requests.get(base_url, params=payload)
+            r = requests.get(self.url, params=payload)
         except Exception as e:
-            raise RefreshError('Plex', base_url, e.message)
+            raise RefreshError('Plex', self.url, e.message)
 
         if r.status_code == 200:
             xml_sections = minidom.parseString(r.text)
             sections = xml_sections.getElementsByTagName('Directory')
             for s in sections:
-                if s.getAttribute('type') == param:
+                m = s.getAttribute('type')
+                if m == refresh_what:
                     r = requests.get(refresh_url % s.getAttribute('key'), payload)
                     if r.status_code == 200:
                         print("refresh successful")
 
-Refresher.register(Plex)
 
+class RefresherFactory(object):
+    Refreshers = {'sickrage': SickRage, 'plex': Plex}
 
-class Sonarr(Refresher):
-    name = 'Sonarr'
-    defaultport = '8989'
-
-    def __init__(self, settings):
-        super(Sonarr, self).__init__(settings)
-
-    def refresh(self, showid):
-        pass
-
-
-Refresher.register(Sonarr)
+    @classmethod
+    def get_refesher(cls, name, **kwargs):
+        for r in cls.Refreshers:
+            if cls.Refreshers[r].name == name:
+                return cls.Refreshers[name](**kwargs)
+        raise Exception('Refresher not supported at this time')
 
 if __name__ == '__main__':
-    rsettings = ReadSettings(os.path.dirname(sys.argv[0]), "autoProcess.ini")
-    toto = Plex(rsettings)
-    toto.refresh('80379')
+    host = 'router.cholli.org'
+
+    srs = {'api_key': '3aaff65b7087dfebc0ef3c6b691d6ee8', 'host': host, 'ssl': True, 'webroot': '/sickrage', 'port': 443}
+    SR = RefresherFactory.get_refesher('sickrage', **srs)
+    SR.refresh(75978)
+
+    plex = {'token': '2dhXxPdwHiztGtGXjHBS', 'host': host, 'port': 32400, 'ssl': True}
+    PL = RefresherFactory.get_refesher('plex', **plex)
+    PL.refresh('movie')

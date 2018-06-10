@@ -24,7 +24,7 @@ class TaggerFactory(object):
         cls.Taggers.update({tagger.name: tagger})
 
     @classmethod
-    def get(cls, tagger: str, tags, filepath: str, artworkfile=None):
+    def get_tagger(cls, tagger: str, tags, filepath: str, artworkfile=None):
         if tagger in TaggerFactory.Taggers:
             return cls.Taggers[tagger](tags, filepath, artworkfile=artworkfile)
         else:

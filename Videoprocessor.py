@@ -6,7 +6,6 @@ from converter.ffmpeg import FFMpeg
 from converter.target import TargetContainerFactory
 from converter.optiongenerator import OptionGenerator
 from fetchers.fetchers import FetchersFactory
-
 from taggers import tagger
 import shutil
 
@@ -16,84 +15,44 @@ log.setLevel(logging.DEBUG)
 
 class VideoProcessor(object):
 
-    def __init__(self, infile, target, config, tagging_info=None):
+    def __init__(self, infile, target, config=None, tagging_info=None):
         conf = configuration.cfgmgr()
-        self._fileinfo = None
+
         if config:
             try:
                 conf.load(config)
-                self._config = conf.cfg
+                self.config = conf.cfg
             except:
                 raise Exception('Config %s is not available in config directory', config)
         else:
-            self._config = conf.defaultconfig
+            self.config = conf.defaultconfig
+
+        if target in self.config['Containers'].keys():
+            self.target = target
+        else:
+            raise Exception(f'Unsupported container, valid containers are {self.config.keys()}')
 
         path = os.path.abspath(infile)
         if os.path.isfile(path):
-            self._infile = infile
+            self.inputfile = path
         else:
             raise IOError(f'File {path} does not exist')
 
-        self._tagging_info = tagging_info
-        self.target = target
-        self.container = None
-        self._ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
+        self.tagging_info = tagging_info
 
-    @property
-    def config(self):
-        return self._config
+        self.ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
 
-    @property
-    def infile(self):
-        return self._infile
+        self.fh = FileHandler(self.config)
 
-    @property
-    def indir(self):
-        indir, _ = os.path.splitext(self.infile)
-        return indir
-
-    @property
-    def input_ext(self):
-        _, ext = os.path.splitext(self.infile)
-        return ext[1:]
-
-    @property
-    def fulloutpath(self):
-        if self.config['File'].get('output_directory'):
-            outpath = self.config['File'].get('output_directory')
+        if self.config['File'].get('work_directory'):
+            outpath = self.config['File'].get('work_directory')
         else:
-            outpath = self.indir
+            outpath = self.fh.breakdown(self.inputfile)['dir']
 
-        fulloutpath = os.path.join(outpath, self.infile + '.mp4')
+        self.full_work_path = os.path.join(outpath, self.fh.breakdown(self.inputfile)['file'] + '.' + self.target)
 
-        if fulloutpath == self.infile:
-            fulloutpath += '.working'
-
-        return fulloutpath
-
-    @property
-    def tagging_info(self):
-        return self._tagging_info
-
-    @property
-    def showid(self):
-        return self.tagging_info.get('id', None)
-
-    @property
-    def id_type(self) -> str:
-        return self.tagging_info.get('id_type', None)
-
-    @property
-    def season(self) -> int:
-        return self.tagging_info.get('season', None)
-
-    @property
-    def episode(self) -> int:
-        return self.tagging_info.get('episode', None)
-
-    @property
-    def ffmpeg(self):
-        return self._ffmpeg
+        if self.full_work_path == self.inputfile:
+            self.full_work_path = os.path.join(outpath, self.fh.breakdown(self.inputfile)['file'] + '-working.' + self.target)
 
     @property
     def needtagging(self) -> bool:
@@ -101,10 +60,6 @@ class VideoProcessor(object):
             return True
         else:
             return False
-
-    @property
-    def needprocessing(self) -> bool:
-            return True
 
     @property
     def needpostprocessing(self) -> bool:
@@ -119,19 +74,32 @@ class VideoProcessor(object):
         return True
 
     def do_process(self):
-        sourcecontainer = self.ffmpeg.probe(self.infile)
+        """
+        Processes the sourcefile into a target container
+        :return:
+        """
+        sourcecontainer = self.ffmpeg.probe(self.inputfile)
         self.container = TargetContainerFactory(self.config, self.target).build_target_container(sourcecontainer)
-
 
     def do_convert(self):
 
         opts = OptionGenerator(self.config).get_options(self.container)
-        for timecode in self.ffmpeg.convert(self.infile, self.fulloutpath, opts, preopts=None, postopts=None):
+        for timecode in self.ffmpeg.convert(self.inputfile, self.full_work_path, opts, preopts=None, postopts=None):
             print(timecode)
 
     def do_tag(self):
+        _id = self.tagging_info.get('id', None)
+        id_type = self.tagging_info.get('id_type', None)
+        season = self.tagging_info.get('season', None)
+        episode = self.tagging_info.get('episode', None)
+        language = self.config['Languages'].get('tagging')
 
-        ftch = FetchersFactory.getfetcher(self.config, self.showid, self.id_type, season=self.season, episode=self.episode)
+        if season:
+            fetcher = self.config['Tagging'].get('preferred_show_tagger', 'tvdb')
+        else:
+            fetcher = self.config['Tagging'].get('preferred_movie_tagger', 'tmdb')
+
+        ftch = FetchersFactory.getfetcher(fetcher, _id, id_type, language=language, season=season, episode=episode)
         tags = ftch.gettags()
 
         if tags.poster_url and self.config['Tagging'].get('download_artwork') is True:
@@ -139,46 +107,96 @@ class VideoProcessor(object):
         else:
             posterfile = None
 
-        t = tagger.TaggerFactory.get(self.container.name, tags, self.fulloutpath, artworkfile=posterfile)
+        t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path, artworkfile=posterfile)
         if t:
             t.writetags()
         else:
-            log.info('Tagging is not supported for container %s at this time, skipping', self.container.name)
+            log.info('Tagging is not supported for container %s at this time, skipping', self.container.format.format_name)
 
     def do_postprocess(self):
-        if os.path.isfile(self.fulloutpath):
+        if os.path.isfile(self.full_work_path):
             for f in self.container.postprocess:
-                f(self.fulloutpath)
+                f(self.full_work_path)
 
     def do_deploy(self):
+        t = self.fh.breakdown(self.inputfile)['file']
         if self.config['File'].get('copy_to'):
-            for d in self.config['File'].get('copy_to'):
-                if os.path.isdir(d):
-                    if os.access(d, os.W_OK):
-                        try:
-                            shutil.copy2(self.fulloutpath, os.path.join(d, f'{self.infile}.{self.container.extension}'))
-                        except:
-                            raise Exception('Error while copying file')
-                    else:
-                        log.error('Directory %s is not writeable', d)
-                else:
-                    log.error('Path %s is not a directory', d)
+            self.fh.copy(self.full_work_path, t + '.' + self.target)
 
         if self.config['File'].get('move_to'):
-            d = self.config['File'].get('move_to')
+            self.fh.move(self.full_work_path)
+
+        if self.config['File'].get('delete_original'):
+            self.fh.delete_original(self.inputfile)
+
+    def do_refresh(self):
+        print('refreshing')
+
+
+class FileHandler(object):
+
+    def __init__(self, cfg):
+        self.copy_to = cfg['File'].get('copy_to')
+        self.move_to = cfg['File'].get('move_to')
+        self.mask = cfg['File'].get('permissions')
+        self.delete_original = cfg['File'].get('delete_original')
+
+    @staticmethod
+    def breakdown(filepath: os.path):
+
+        dir, fileandext = os.path.split(filepath)
+        file, ext = os.path.splitext(fileandext)
+
+        return {'dir': dir, 'filandext': fileandext, 'file': file, 'ext': ext}
+
+    def copy(self, infile: os.path, dst: str):
+        if not self.copy_to:
+            return False
+
+        for d in self.copy_to:
             if os.path.isdir(d):
                 if os.access(d, os.W_OK):
                     try:
-                        os.rename(self.fulloutpath, os.path.join(d, f'{self.infile}.{self.container.extension}'))
+                        shutil.copy2(infile, os.path.join(d, dst))
                     except:
-                        log.exception('Error while moving file')
+                        raise Exception('Error while copying file')
                 else:
                     log.error('Directory %s is not writeable', d)
             else:
                 log.error('Path %s is not a directory', d)
+            log.info('%s copied to folder(s)  %s', infile, ' ,'.join(d))
 
-    def do_refresh(self):
-        print('refreshing')
+        return True
+
+    def move(self, src: os.path, dst: os.path):
+        if not self.move_to:
+            return False
+
+        if os.path.isdir(self.move_to):
+            if os.access(self.move_to, os.W_OK):
+                try:
+                    os.rename(src, dst)
+                except:
+                    log.exception('Error while moving file')
+            else:
+                log.error('Directory %s is not writeable', self.move_to)
+        else:
+            log.error('Path %s is not a directory', self.move_to)
+
+    def delete_original(self, infile: os.path):
+        try:
+            os.chmod(infile, int("0777", 8))
+        except:
+            log.debug('File maybe read only')
+
+        if os.path.exists(infile):
+            try:
+                os.remove(infile)
+            except:
+                log.exception('Original file %s could not be deleted', infile)
+                return False
+        return True
+
 
 class MachineFactory(object):
 
@@ -188,15 +206,14 @@ class MachineFactory(object):
         machine = Machine(model=videoprocessor, initial='rest')
         states = ['rest']
 
-        if videoprocessor.needprocessing:
-            states.append(State(name='processed', on_enter=['do_process']))
-            states.append(State(name='converted', on_enter=['do_convert']))
+        states.append(State(name='processed', on_enter=['do_process']))
+        states.append(State(name='converted', on_enter=['do_convert']))
 
         if videoprocessor.needtagging:
             states.append(State(name='tagged', on_enter=['do_tag']))
 
-        if videoprocessor.needpostprocessing:
-            states.append(State(name='postprocessed', on_enter=['do_postprocess']))
+        #if videoprocessor.needpostprocessing:
+        #    states.append(State(name='postprocessed', on_enter=['do_postprocess']))
 
         if videoprocessor.needdeploying:
             states.append(State(name='deployed', on_enter=['do_deploy']))
@@ -212,7 +229,7 @@ class MachineFactory(object):
 if __name__ == '__main__':
     showid = 75978
     id_type = 'tvdb_id'
-
+    tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
     infile = '/Users/jon/Downloads/family.guy.s16e19.720p.web.x264-tbs.mkv'
     configname = 'defaults.ini'
     target = 'mp4'
@@ -222,7 +239,7 @@ if __name__ == '__main__':
             'episode': 18
            }
 
-    VP = MachineFactory.get(infile=infile, config=configname, target=target, tagging_info=None)
+    VP = MachineFactory.get(infile=infile, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
 while True:

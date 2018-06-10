@@ -3,11 +3,12 @@
 This module contains the logic to build targetcontainers with the appropriate streams from a sourcecontainer
 """
 from abc import ABCMeta, abstractmethod
-from converter.streams import AudioStream, VideoStream, SubtitleStream, Container
-from converter.source import SourceVideoStream, SourceAudioStream, SourceSubtitleStream
+from converter.streams import AudioStream, VideoStream, SubtitleStream, Container, Stream
+from converter.source import SourceVideoStream, SourceAudioStream, SourceSubtitleStream, SourceContainer
 from converter.streamtemplates import TemplateFactory, VideoStreamTemplate, AudioStreamTemplate, SubtitleStreamTemplate
-
+from typing import Union
 import logging
+
 log = logging.getLogger(__name__)
 
 # TODO: build bad codecs logic. There are some codecs that we cannot transcode from.
@@ -20,7 +21,7 @@ class TargetContainer(Container):
         super(TargetContainer, self).__init__(format)
 
     def add_stream(self, stream) -> bool:
-        assert isinstance(stream, (TargetVideoStream,TargetAudioStream, TargetSubtitleStream))
+        assert isinstance(stream, (TargetVideoStream, TargetAudioStream, TargetSubtitleStream))
 
         if stream.type == 'video':
             streams = self.videostreams
@@ -43,7 +44,6 @@ class TargetContainer(Container):
                 streams.append(stream)
 
 
-
 class TargetAudioStream(AudioStream):
 
     def __init__(self, codec, channels, bitrate, language, sourceindex, willtranscode):
@@ -54,7 +54,8 @@ class TargetAudioStream(AudioStream):
 
 class TargetVideoStream(VideoStream):
 
-    def __init__(self, codec: str, pix_fmt: str, bitrate: int, height: int, width: int, profile: str, level: float, sourceindex: int, willtranscode: bool, src_height: int, src_width: int):
+    def __init__(self, codec: str, pix_fmt: str, bitrate: int, height: int, width: int, profile: str, level: float,
+                 sourceindex: int, willtranscode: bool, src_height: int, src_width: int):
         super(TargetVideoStream, self).__init__(codec, pix_fmt, bitrate, height, width, profile, level)
         self.sourceindex = sourceindex
         self.willtranscode = willtranscode
@@ -90,7 +91,6 @@ class TargetContainerFactory(object):
 
             self.subtitle_accepted_formats = cfg['subtitle'].get('accepted_track_formats')
 
-
             self.audio_accepted_languages = config['Languages'].get('audio')
             self.subtitle_accepted_languages = config['Languages'].get('subtitle')
             self.subtitle_transcode_to = cfg['subtitle'].get('transcode_to')
@@ -99,12 +99,12 @@ class TargetContainerFactory(object):
         else:
             raise Exception('Unsupported container type')
 
-    def build_target_container(self, sourcecontainer) -> TargetContainer:
+    def build_target_container(self, sourcecontainer: SourceContainer) -> TargetContainer:
         """Builds a target container from the sourcecontainer and the options provided by the user.
         It takes all of the stream types in order of video, audio and subtitle, and generates a TargetContainer
         that conforms with the options"""
 
-        assert isinstance(sourcecontainer, Container)
+        assert isinstance(sourcecontainer, SourceContainer)
         ctn = TargetContainer(self.type)
 
         for stream in sourcecontainer.videostreams:
@@ -120,7 +120,6 @@ class TargetContainerFactory(object):
                 s = StreamGeneratorFactory.conformtotemplate(stream, template)
 
             ctn.add_stream(s)
-
 
         audiostreams = filterlanguages(sourcecontainer.audiostreams, self.audio_accepted_languages, relax=True)
         for stream in audiostreams:
@@ -141,7 +140,8 @@ class TargetContainerFactory(object):
                 s = StreamGeneratorFactory.copystream(stream)
                 ctn.add_stream(s)
 
-        subtitlestreams = filterlanguages(sourcecontainer.subtitlestreams, self.subtitle_accepted_languages, relax=False)
+        subtitlestreams = filterlanguages(sourcecontainer.subtitlestreams, self.subtitle_accepted_languages,
+                                          relax=False)
         for stream in subtitlestreams:
             if stream.codec in self.subtitle_accepted_formats:
                 s = StreamGeneratorFactory.copystream(stream)
@@ -158,16 +158,23 @@ class IStreamGenerator(metaclass=ABCMeta):
     1) The stream can be copied from a source stream. This does not involve a template.
     2) The stream can be checked against the template and its parameters adjusted accordingly
     In any case, we always need the source index to be able to map the targetstream to the source stream"""
+
     @staticmethod
     @abstractmethod
-    def copystream(stream):
+    def copystream(stream: Union[AudioStream, VideoStream, SubtitleStream]) -> Union[
+        TargetVideoStream, TargetAudioStream, TargetSubtitleStream]:
         """Copies the sourcestream into a targetstream"""
         pass
 
     @staticmethod
     @abstractmethod
-    def conformtotemplate(stream, template):
-        """Takes a template and sets the options of the"""
+    def conformtotemplate(stream: Union[AudioStream, VideoStream, SubtitleStream],
+                          template: Union[AudioStreamTemplate, VideoStreamTemplate, SubtitleStreamTemplate]) -> Union[
+        TargetVideoStream, TargetAudioStream, TargetSubtitleStream]:
+        """Takes a stream and a template and returns a TargetTemplate conforming with the template.
+        For example, if the input stream has a bitrate of 1500k when only 1000k are allowed in the template
+        returns a target stream with a bitrate of 1000k. Conversely, if stream.bitrate = 1200k and
+        template.max_bitrate = 1500k, the target container will have a 1200k bitrate."""
         pass
 
 
@@ -354,8 +361,6 @@ class SubtitleStreamGenerator(IStreamGenerator):
                                         willtranscode=False)
 
 
-
-
 def filterlanguages(streamlist, languagelist, relax=False):
     """Helper function to select tracks based on language.
     If relax is True, then if the selection is empty, the function will
@@ -373,5 +378,3 @@ def filterlanguages(streamlist, languagelist, relax=False):
 
 class MissingFormatError(Exception):
     pass
-
-

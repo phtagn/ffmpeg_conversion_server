@@ -44,8 +44,7 @@ class FFMpegConvertError(Exception):
         self.pid = pid
 
     def __repr__(self):
-        error = self.details if self.details else self.\
-            message
+        error = self.details if self.details else self.message
         return ('<FFMpegConvertError error="%s", pid=%s, cmd="%s">' %
                 (error, self.pid, self.cmd))
 

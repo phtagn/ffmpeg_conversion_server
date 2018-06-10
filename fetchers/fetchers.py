@@ -6,10 +6,11 @@ from tvdb_api import Tvdb
 import typing
 import tempfile
 import os
+
 log = logging.getLogger(__name__)
 
 
-class Tags2(object):
+class Tags(object):
 
     def __init__(self):
         self.title = ''
@@ -42,19 +43,20 @@ class FetchersFactory(object):
             cls.MovieFetchers.update({fetcher.name: fetcher})
 
     @classmethod
-    def getfetcher(cls, cfg, showid, id_type, season=None, episode=None):
+    def getfetcher(cls, fetcher: str, showid: int, id_type: str, language: str, season=None, episode=None):
         if season is not None:
-            return cls.TVFetchers[cfg['Tagging'].get_parser('preferred_show_tagger')](showid,
-                                                                                      id_type,
-                                                                                      season=season,
-                                                                                      episode=episode,
-                                                                                      language=cfg['Tagging'].get_parser('tag_language'))
+            return cls.TVFetchers[fetcher](showid,
+                                           id_type,
+                                           season=season,
+                                           episode=episode,
+                                           language=language)
         else:
-            return cls.MovieFetchers[cfg['Tagging'].get_parser('preferred_movie_tagger')](showid,
-                                                                                          id_type,
-                                                                                          season=None,
-                                                                                          episode=None,
-                                                                                          language=cfg['Tagging'].get_parser('tag_language'))
+            return cls.MovieFetchers[fetcher](showid,
+                                              id_type,
+                                              season=None,
+                                              episode=None,
+                                              language=language)
+
 
 class IFetcher(metaclass=ABCMeta):
     ftype = []
@@ -76,7 +78,6 @@ class IFetcher(metaclass=ABCMeta):
     @abstractmethod
     def gettags(self):
         pass
-
 
     def downloadArtwork(self, poster_url):
         posterfile = None
@@ -152,7 +153,7 @@ class FetcherTmdbTV(FetcherTmdb):
 
         season = self.season
         episode = self.episode
-        tags = Tags2()
+        tags = Tags()
         episodedata = None
         showdata = None
 
@@ -208,7 +209,7 @@ class FetcherTmdbMovie(FetcherTmdb):
         except Exception:
             raise FetcherException
 
-        tags = Tags2()
+        tags = Tags()
         if moviedata:
 
             tags.title = moviedata['title']
@@ -244,6 +245,7 @@ class FetcherTmdbMovie(FetcherTmdb):
         else:
             raise FetcherException
 
+
 class FetcherTvdb(IFetcher):
     ftype = 'tv'
     name = 'tvdb'
@@ -251,17 +253,16 @@ class FetcherTvdb(IFetcher):
     def __init__(self, showid, id_type, season=None, episode=None, language='en'):
         super(FetcherTvdb, self).__init__(showid, id_type, season=season, episode=episode, language=language)
 
-
         fetcher = Tvdb()
         if language in fetcher.config['valid_languages']:
             self.language = language
         else:
             self.language = 'en'
-            log.error('Language %s not supported by tvdb, defaulting to English. Supported languages are {%s}', language, fetcher.config['valid_languages'])
+            log.error('Language %s not supported by tvdb, defaulting to English. Supported languages are {%s}',
+                      language, fetcher.config['valid_languages'])
 
         self.fetcher = Tvdb(interactive=False, cache=True, banners=True, actors=True, forceConnect=True,
                             language=self.language)
-
 
         if self.id_type == 'tvdb_id':
             try:
@@ -280,7 +281,7 @@ class FetcherTvdb(IFetcher):
         episode = self.episode
 
         showdata = self.fetcher[self.fetcherid]
-        tags = Tags2()
+        tags = Tags()
 
         data = showdata.data
         seasondata = showdata[season]
@@ -304,6 +305,13 @@ class FetcherTvdb(IFetcher):
         tags.episode_number = episode
         tags.title = episodedata['episodeName']
 
+        bannerdata = data['_banners']['season']['']
+        for k in bannerdata:
+            if bannerdata[k]['subKey'] == str(season) and bannerdata[k]['_bannerpath']:
+                tags.poster_url = bannerdata[k]['_bannerpath']
+                break
+
+
         if episodedata['writer']:
             for name in episodedata['writer']:
                 if name != "":
@@ -316,12 +324,12 @@ class FetcherTvdb(IFetcher):
         return tags
 
 
-
 FetchersFactory.register(FetcherTvdb)
 
 FetchersFactory.register(FetcherTmdbTV)
 
 FetchersFactory.register(FetcherTmdbMovie)
+
 
 class FetcherException(Exception):
     pass
@@ -359,47 +367,4 @@ class posterCollection:
         self.posters.append(inputPoster)
 
 
-if __name__ == '__main__':
 
-    tv = {'jobtype': 'tvshow',
-          'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-          'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-          'season': 2,
-          'episode': 2,
-          'id': 176941,
-          'id_type': 'tvdb',
-          'requester': 'sickrage',
-          'settings': '/Users/Jon/Downloads/config/testsettings.ini'
-          }
-
-    movie = {
-        'jobtype': 'movie',
-        'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-        'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-        'id': 2501,
-        'id_type': 'tmdb',
-        'requester': 'sickrage',
-        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
-    }
-
-    movieimdb = {
-        'jobtype': 'movie',
-        'inputfile': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-        'original': '/Users/Jon/Downloads/in/Fargo S02E01.mkv',
-        'id': 'tt5699154',
-        'id_type': 'imdb',
-        'requester': 'sickrage',
-        'settings': '/Users/Jon/Downloads/config/testsettings.ini'
-    }
-
-    import configuration
-    cfgmgr = configuration.cfgmgr()
-    cfg = cfgmgr.defaultconfig
-
-    showid = {'id': 'tt1981128', 'id_type': 'imdb_id'}
-    ftch = FetchersFactory.getMoviefetcher('tmdb', showid, cfg)
-
-    show = 'scrubs'
-    tags = ftch.gettags(showinfo={'episode': 3, 'season': 5})
-    print(tags)
-    print("yeash")
