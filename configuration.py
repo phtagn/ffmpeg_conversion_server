@@ -1,4 +1,4 @@
-from configobj import ConfigObj
+from configobj import ConfigObj, Section
 from configobj import flatten_errors
 from typing import Union
 import validate
@@ -9,6 +9,7 @@ import languagecode
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
+
 
 class cfgmgr(object):
     def __init__(self):
@@ -33,8 +34,9 @@ class cfgmgr(object):
         return self._defaultconfig
 
     def savedefaults(self):
-        #self.defaultconfig.walk(self.nonetoempty)
-        self._defaultconfig.filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config', 'defaults.ini')
+        # self.defaultconfig.walk(self.nonetoempty)
+        self._defaultconfig.filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config',
+                                                    'defaults.ini')
         self._defaultconfig.write()
 
     @staticmethod
@@ -46,7 +48,6 @@ class cfgmgr(object):
 
         section[key] = newval
 
-
     @property
     def cfg(self) -> ConfigObj:
         """
@@ -54,34 +55,42 @@ class cfgmgr(object):
         """
         return self._usercfg
 
-
-    def load(self, config: Union[str, dict]):
+    def load(self, config: Union[str, dict], overrides=None):
         """
         Loads userconfig and validates it.
         """
+        if overrides:
+            override_settings = ConfigObj(overrides, configspec=configspec, encoding='UTF8', default_encoding='UTF8',
+                                      write_empty_values=False)
+
+            r = override_settings.validate(self._validator, preserve_errors=True)
+
+            if isinstance(r, dict):
+                log.error('Overrides contained errors, discarding')
+                overrides = None
+
         inifile = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config', config)
+
         if os.path.exists(inifile):
-            usersettings = ConfigObj(inifile, configspec=configspec, encoding='UTF8', default_encoding='UTF8', write_empty_values=True)
+            usersettings = ConfigObj(inifile, configspec=configspec, encoding='UTF8', default_encoding='UTF8',
+                                     write_empty_values=True)
             output = ""
             if usersettings:
-                self._usercfg = usersettings
-                r = self._usercfg.validate(self._validator, preserve_errors=True)
+
+                if overrides:
+                    usersettings.merge(overrides)
+
+                r = usersettings.validate(self._validator, preserve_errors=True)
 
                 if isinstance(r, dict):
-                    for entry in flatten_errors(self._usercfg, r):
-                        section_list, key, value = entry
-                        output += f'Error in {":".join(section_list)}:{key}. This is very likely a key being ' \
-                                  f'specified with no value. Either set a value or remove the key.'
-                if output:
-                    raise ConfigException(output)
+                    raise ConfigException(output, self._usercfg)
+                usersettings.walk(self.properNone)
 
-                self._usercfg.walk(self.properNone)
-
+                self._usercfg = usersettings
                 self.fixafewthings()
 
         else:
             raise IOError(f'Could not find config file {inifile}')
-
 
     def fixafewthings(self):
 
@@ -96,7 +105,8 @@ class cfgmgr(object):
                           'x264': 'h264',
                           'x265': 'hevc'}
 
-            output = list(set([codecname if codecname not in codecalias else codecalias[codecname] for codecname in codecnames]))
+            output = list(
+                set([codecname if codecname not in codecalias else codecalias[codecname] for codecname in codecnames]))
             return output
 
         for section in self._usercfg['Containers']:
@@ -113,11 +123,15 @@ class cfgmgr(object):
                 self._usercfg['Containers'][section]['subtitle']['accepted_track_formats'])
 
             # Make sure that the transcode_to is also in accepted_track_formats
-            if self._usercfg['Containers'][section]['video']['transcode_to'] not in self._usercfg['Containers'][section]['video']['accepted_track_formats']:
-                self._usercfg['Containers'][section]['video']['accepted_track_formats'].append(self._usercfg['Containers'][section]['video']['transcode_to'])
+            if self._usercfg['Containers'][section]['video']['transcode_to'] not in \
+                    self._usercfg['Containers'][section]['video']['accepted_track_formats']:
+                self._usercfg['Containers'][section]['video']['accepted_track_formats'].append(
+                    self._usercfg['Containers'][section]['video']['transcode_to'])
 
-            if self._usercfg['Containers'][section]['audio']['transcode_to'] not in self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
-                self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(self._usercfg['Containers'][section]['audio']['transcode_to'])
+            if self._usercfg['Containers'][section]['audio']['transcode_to'] not in \
+                    self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
+                self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(
+                    self._usercfg['Containers'][section]['audio']['transcode_to'])
 
             # for audio only, make sure that the force_create_tracks are also on accepted track formats:
             for codec in self._usercfg['Containers'][section]['audio']['force_create_tracks']:
@@ -129,7 +143,11 @@ class cfgmgr(object):
         for t in ['audio', 'subtitle']:
             self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
 
+    def override(self, overrides: dict, config: str):
 
+
+
+        self.load(config, overrides)
 
     @staticmethod
     def properNone(section, key):
@@ -144,7 +162,6 @@ class cfgmgr(object):
 
         section[key] = newval
 
-
     def save(self, name: str) -> bool:
         if self.cfg and name:
             self.cfg.filename = os.path.join('config', name + '.ini')
@@ -155,9 +172,18 @@ class cfgmgr(object):
 
 
 class ConfigException(Exception):
-    pass
+    def __init__(self, validator_output, config):
+        error_message = ''
+        for entry in flatten_errors(config, validator_output):
+            section_list, key, value = entry
+            error_message += f'Error in {":".join(section_list)}:{key}. This is very likely a key being ' \
+                             f'specified with no value. Either set a value or remove the key.'
+
+        self.message = error_message
+
 
 if __name__ == '__main__':
+    toto = {'TrackFormats': {'theora': {'max_bitrate': '1080'}}}
     cm = cfgmgr()
-    cm.savedefaults()
-    cm.load('defaults.ini')
+    #cm.savedefaults()
+    cm.load('defaults.ini', overrides=toto)

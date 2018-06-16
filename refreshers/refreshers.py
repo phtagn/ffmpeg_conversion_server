@@ -29,7 +29,7 @@ class RefreshError(Exception):
 class Refresher(metaclass=ABCMeta):
     name = ''
     defaults = {'host': 'string(default=localhost)',
-                'ssl': 'boolean(default=False',
+                'ssl': 'boolean(default=False)',
                 'webroot': 'string(default=None)',
                 'refresh': 'boolean(default=False)'}
 
@@ -96,6 +96,10 @@ class SickRage(Refresher):
 
 class Plex(Refresher):
     name = 'plex'
+    defaults = Refresher.defaults.copy()
+    defaults.update({'port': 'integer(default=32400)',
+                     'token': 'string(default=None)'
+                     })
 
     def __init__(self, **kwargs):
         essential = ['token', 'host', 'port']

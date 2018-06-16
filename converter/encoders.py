@@ -792,7 +792,7 @@ class H264Codec(VideoEncoder):
     defaults = VideoEncoder.defaults.copy()
     defaults.update({'preset': 'string(default=None)',
                      'tune': 'string(default=None)',
-                     'crf': 'pass'
+                     'crf': 'integer(default=23)'
                      })
 
     def __init__(self, opts) -> None:

@@ -7,20 +7,38 @@ from converter.target import TargetContainerFactory
 from converter.optiongenerator import OptionGenerator
 from fetchers.fetchers import FetchersFactory
 from taggers import tagger
+from helpers.helpers import breakdown
 import shutil
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
+
 class VideoProcessor(object):
 
-    def __init__(self, infile, target, config=None, tagging_info=None):
+    def __init__(self, infile: str, target: str, config: str=None, overrides: dict=None, tagging_info: dict = None, notify: list=None):
+        """
+        Videoprocessor contains the methods to process a video from start to finish. The steps are :
+        1) Analyse the input file to determine the source container, and create the theoretical target container
+        2) Convert the input file into the output file
+        3) Tag the output file
+        4) Postprocess, e.g. for mp4 do qtfaststart
+        5) Deploy the output file to its destination
+        6) Notify various apps of the
+        :param infile: path to the input file
+        :param target: extension of container, e.g. mp4, mkv
+        :param config: name of the configuration file, relative to the config directory
+        :param overrides: a dictionary containing overrides to the configuration file
+        :param tagging_info: a dictionary in the same form as the config file. Does not need to contain all
+        the configuration file entries, just those you want to override
+        :param notify: a dictionary holding the list of applications to notify
+        """
         conf = configuration.cfgmgr()
 
         if config:
             try:
-                conf.load(config)
+                conf.load(config, overrides=overrides)
                 self.config = conf.cfg
             except:
                 raise Exception('Config %s is not available in config directory', config)
@@ -42,52 +60,44 @@ class VideoProcessor(object):
 
         self.ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
 
-        self.fh = FileHandler(self.config)
+        self.fh = FileHandler(copy_to=self.config['Files'].get('copy_to'),
+                              move_to=self.config['Files'].get('move_to'),
+                              permissions=self.config['Files'].get('permissions'),
+                              delete=self.config['Files'].get('delete_original'))
 
         if self.config['File'].get('work_directory'):
             outpath = self.config['File'].get('work_directory')
         else:
-            outpath = self.fh.breakdown(self.inputfile)['dir']
+            outpath = breakdown(self.inputfile)['dir']
 
-        self.full_work_path = os.path.join(outpath, self.fh.breakdown(self.inputfile)['file'] + '.' + self.target)
+        self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '.' + self.target)
 
         if self.full_work_path == self.inputfile:
-            self.full_work_path = os.path.join(outpath, self.fh.breakdown(self.inputfile)['file'] + '-working.' + self.target)
-
-    @property
-    def needtagging(self) -> bool:
-        if self.config['Tagging']['tagfile'] is True and self.tagging_info:
-            return True
-        else:
-            return False
-
-    @property
-    def needpostprocessing(self) -> bool:
-        return False
-
-    @property
-    def needrefreshing(self) -> bool:
-        return True
-
-    @property
-    def needdeploying(self):
-        return True
+            self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '-working.' + self.target)
 
     def do_process(self):
         """
         Processes the sourcefile into a target container
-        :return:
+        :return: None
         """
-        sourcecontainer = self.ffmpeg.probe(self.inputfile)
-        self.container = TargetContainerFactory(self.config, self.target).build_target_container(sourcecontainer)
+        source_container = self.ffmpeg.probe(self.inputfile)
+        self.container = TargetContainerFactory(self.config, self.target).build_target_container(source_container)
 
     def do_convert(self):
-
+        """
+        Do the converion, i.e. call ffmpeg to actually convert the file.
+        :return: None
+        """
         opts = OptionGenerator(self.config).get_options(self.container)
-        for timecode in self.ffmpeg.convert(self.inputfile, self.full_work_path, opts, preopts=None, postopts=None):
-            print(timecode)
+        try:
+            for timecode in self.ffmpeg.convert(self.inputfile, self.full_work_path, opts, preopts=None, postopts=None):
+                print(timecode)
+        except Exception as e:
+            log.critical('Conversion failed with message %s', e)
+            self.full_work_path = None
 
     def do_tag(self):
+
         _id = self.tagging_info.get('id', None)
         id_type = self.tagging_info.get('id_type', None)
         season = self.tagging_info.get('season', None)
@@ -114,12 +124,23 @@ class VideoProcessor(object):
             log.info('Tagging is not supported for container %s at this time, skipping', self.container.format.format_name)
 
     def do_postprocess(self):
-        if os.path.isfile(self.full_work_path):
-            for f in self.container.postprocess:
-                f(self.full_work_path)
+        if not self.full_work_path:
+            log.critical('Postrprocessing did not occur, because conversion failed')
+            return False
+
+        from postprocesses import PostProcessorFactory
+        try:
+            postprocesses = PostProcessorFactory.get_post_processors(self.config['Containers'][target].get('post_processors'))
+        except:
+            log.info('No post processing needed')
+            postprocesses = None
+
+        if postprocesses:
+            for postprocess in postprocesses:
+                postprocess.process()
 
     def do_deploy(self):
-        t = self.fh.breakdown(self.inputfile)['file']
+        t = breakdown(self.inputfile)['file']
         if self.config['File'].get('copy_to'):
             self.fh.copy(self.full_work_path, t + '.' + self.target)
 
@@ -135,24 +156,13 @@ class VideoProcessor(object):
 
 class FileHandler(object):
 
-    def __init__(self, cfg):
-        self.copy_to = cfg['File'].get('copy_to')
-        self.move_to = cfg['File'].get('move_to')
-        self.mask = cfg['File'].get('permissions')
-        self.delete_original = cfg['File'].get('delete_original')
-
-    @staticmethod
-    def breakdown(filepath: os.path):
-
-        dir, fileandext = os.path.split(filepath)
-        file, ext = os.path.splitext(fileandext)
-
-        return {'dir': dir, 'filandext': fileandext, 'file': file, 'ext': ext}
+    def __init__(self, copy_to=None, move_to=None, permissions=None, delete: bool=None):
+        self.copy_to = copy_to
+        self.move_to = move_to
+        self.mask = permissions
+        self.delete = delete
 
     def copy(self, infile: os.path, dst: str):
-        if not self.copy_to:
-            return False
-
         for d in self.copy_to:
             if os.path.isdir(d):
                 if os.access(d, os.W_OK):
@@ -169,8 +179,6 @@ class FileHandler(object):
         return True
 
     def move(self, src: os.path, dst: os.path):
-        if not self.move_to:
-            return False
 
         if os.path.isdir(self.move_to):
             if os.access(self.move_to, os.W_OK):
@@ -208,18 +216,10 @@ class MachineFactory(object):
 
         states.append(State(name='processed', on_enter=['do_process']))
         states.append(State(name='converted', on_enter=['do_convert']))
-
-        if videoprocessor.needtagging:
-            states.append(State(name='tagged', on_enter=['do_tag']))
-
-        #if videoprocessor.needpostprocessing:
-        #    states.append(State(name='postprocessed', on_enter=['do_postprocess']))
-
-        if videoprocessor.needdeploying:
-            states.append(State(name='deployed', on_enter=['do_deploy']))
-
-        if videoprocessor.needrefreshing:
-            states.append(State(name='refreshed', on_enter=['do_refresh']))
+        states.append(State(name='tagged', on_enter=['do_tag']))
+        states.append(State(name='postprocessed', on_enter=['do_postprocess']))
+        states.append(State(name='deployed', on_enter=['do_deploy']))
+        states.append(State(name='refreshed', on_enter=['do_refresh']))
 
         machine.add_states(states)
         machine.add_ordered_transitions()

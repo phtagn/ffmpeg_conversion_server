@@ -1,6 +1,7 @@
 # coding=utf-8
 from converter.streamformats import StreamFormatFactory
 from converter.encoders import EncoderFactory
+from refreshers.refreshers import RefresherFactory
 from configobj import ConfigObj
 
 
@@ -8,17 +9,17 @@ from configobj import ConfigObj
 
 generic_container_settings = {
         'video': {
-            'prefer_method': 'option(copy, transcode, override, default=copy)',
             'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
+            'prefer_method': 'option(copy, transcode, override, default=copy)',
             'transcode_to': 'string(default=h264)'
         },
 
         'audio': {
             'accepted_track_formats': 'force_list(default=list(aac, ac3))',
-            'transcode_to': 'string(default=aac)',
-            'force_create_tracks': 'force_list(default=None)',
             'audio_copy_original': 'boolean(default=False)',
             'create_multiple_stereo_tracks': 'boolean(default=False)',
+            'force_create_tracks': 'force_list(default=None)',
+            'transcode_to': 'string(default=aac)',
         },
 
         'subtitle': {
@@ -26,7 +27,7 @@ generic_container_settings = {
             'transcode_to': 'string(default=mov_text)'
         },
 
-        'process_same': 'boolean(default=False)',
+        'post_processors': 'force_list(default=None)',
         'preopts': 'string(default=None)',
         'postopts': 'string(default=None)'
     }
@@ -35,17 +36,15 @@ supported_containers = ['mp4', 'mkv']
 
 containersettings = {supported_container: generic_container_settings for supported_container in supported_containers}
 
-#encosettings = {'video': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values()},
-#                 'audio': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values()},
-#                 'subtitle': {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values()}
-#                 }
 
 encosettings = {cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['video'].values() if cdc.defaults}
 encosettings.update({cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['audio'].values() if cdc.defaults})
 encosettings.update({cdc.codec_name: cdc.defaults for cdc in EncoderFactory.codecs['subtitle'].values() if cdc.defaults})
 
+
 formatsettings = {fmt.name: fmt.format_options for fmt in StreamFormatFactory.formats.values()}
 
+refreshersettings = {refresher.name: refresher.defaults for refresher in RefresherFactory.Refreshers.values()}
 defaultconfig = {
     'FFMPEG': {
         'ffmpeg': 'string(default=/usr/local/bin/ffmpeg)',
@@ -75,8 +74,10 @@ defaultconfig = {
     },
     'Containers': containersettings,
     'TrackFormats': formatsettings,
-    'Encoders': encosettings
+    'Encoders': encosettings,
+    'Refreshers': refreshersettings
 }
+
 
 configspec = ConfigObj(defaultconfig, list_values=False)
 
