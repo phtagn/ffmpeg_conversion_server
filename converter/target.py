@@ -1,6 +1,12 @@
 # coding=utf-8
 """
-This module contains the logic to build targetcontainers with the appropriate streams from a sourcecontainer
+converter.target
+________________
+
+This module contains the logic to build targetcontainers with the appropriate streams from a source container.
+Target containers are built by comparing source containers with a set of options. The resulting target containers
+contain streams (audio, video and subtitle streams). The target containers can then be used to determine which
+codec are needed to create the track contained in the target container from the tracks in the source container.
 """
 from abc import ABCMeta, abstractmethod
 from converter.streams import AudioStream, VideoStream, SubtitleStream, Container, Stream
@@ -74,26 +80,59 @@ class TargetSubtitleStream(SubtitleStream):
 class TargetContainerFactory(object):
     """Build a TargetContainer object with the proper streams"""
 
-    def __init__(self, config, typ):
+    def __init__(self, config,
+                 video_accepted_formats: list,
+                 video_prefer_method: str,
+                 video_transcode_to: str,
+                 audio_accepted_formats: list,
+                 audio_transcode_to: str,
+                 audio_force_create: bool,
+                 audio_copy_original: bool,
+                 audio_accepted_languages: list,
+                 subtitle_accepted_formats: list,
+                 subtitle_accepted_languages: list,
+                 subtitle_transcode_to: str,
+                 typ):
+        """
+
+        :param config:
+        :param video_accepted_formats: list of accepted stream formats e.g. [h264, hevc]
+        :param video_prefer_method: str, one of 'copy', 'transcode', 'override', indicates the preferred method for
+        processing an input stream
+        :param video_transcode_to: str, one of the available video stream formats (see the streamformats module)
+        :param audio_accepted_formats:
+        :param audio_transcode_to: str, one of the available audio stream formats (see the streamformats module)
+        :param audio_force_create: list of available stream formats
+        :param audio_copy_original: bool, if true will always copy the original tracks and create new tracks based on
+        force create
+        :param audio_accepted_languages:
+        :param subtitle_accepted_formats:
+        :param subtitle_accepted_languages:
+        :param subtitle_transcode_to:
+        :param typ: str, one of the available container formats.
+        """
+
+
         if typ in config['Containers']:
             cfg = config['Containers'][typ]
 
             self.type = typ
 
-            self.video_accepted_formats = cfg['video'].get('accepted_track_formats')
-            self.video_prefer_method = cfg['video'].get('prefer_method')
-            self.video_transcode_to = cfg['video'].get('transcode_to')
+            self.video_accepted_formats = video_accepted_formats
+            self.video_prefer_method = video_prefer_method
+            self.video_transcode_to = video_transcode_to
 
-            self.audio_accepted_formats = cfg['audio'].get('accepted_track_formats')
-            self.audio_transcode_to = cfg['audio'].get('transcode_to')
-            self.audio_force_create = cfg['audio'].get('force_create_tracks')
-            self.audio_copy_original = cfg['audio'].get('audio_copy_original')
+            self.audio_accepted_formats = audio_accepted_formats
+            self.audio_transcode_to = audio_transcode_to
+            self.audio_force_create = audio_force_create
+            self.audio_copy_original = audio_copy_original
 
-            self.subtitle_accepted_formats = cfg['subtitle'].get('accepted_track_formats')
+            self.subtitle_accepted_formats = subtitle_accepted_formats
 
-            self.audio_accepted_languages = config['Languages'].get('audio')
-            self.subtitle_accepted_languages = config['Languages'].get('subtitle')
-            self.subtitle_transcode_to = cfg['subtitle'].get('transcode_to')
+            self.audio_accepted_languages = audio_accepted_languages
+            self.subtitle_accepted_languages = subtitle_accepted_languages
+            self.subtitle_transcode_to = subtitle_transcode_to
+
             self.config = config
 
         else:

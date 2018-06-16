@@ -143,11 +143,8 @@ class cfgmgr(object):
         for t in ['audio', 'subtitle']:
             self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
 
-    def override(self, overrides: dict, config: str):
-
-
-
-        self.load(config, overrides)
+    def extract_track_config(self, typ):
+        pass
 
     @staticmethod
     def properNone(section, key):

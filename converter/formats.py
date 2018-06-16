@@ -27,6 +27,12 @@ class ContainerFormat(object):
 
     @classmethod
     def supports(cls, codec: str, typ: str) -> bool:
+        """
+        Method to test if the container supports the codec.
+        :param codec: str, the name of the codec
+        :param typ: str, the type of the container (e.g. mp4, mkv)
+        :return: True if container supports the codec, False if not
+        """
         if typ == 'video':
             codecs = cls.video_supported_codecs
         elif typ == 'audio':
@@ -35,7 +41,6 @@ class ContainerFormat(object):
             codecs = cls.subtitle_supported_codecs
         else:
             raise Exception(f'{typ} not one of video, audio, subtitle')
-
 
         if codec in [cdc.name for cdc in codecs]:
             return True
