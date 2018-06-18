@@ -5,17 +5,18 @@ log = logging.getLogger(__name__)
 
 
 class QtFastStart(object):
-    supported_extensions = ['mp4']
+    supported_extensions = ['.mp4']
     name = 'qtfs'
 
-    def process(self, inputfile):
+    @classmethod
+    def process(cls, inputfile):
         pathelements = helpers.breakdown(inputfile)
         temp_ext = '.QTFS'
 
         if not os.path.exists(inputfile):
             raise IOError(f'{inputfile} does not exist')
 
-        if pathelements['extension'] in self.supported_extensions:
+        if pathelements['extension'] in cls.supported_extensions:
             from qtfaststart import processor, exceptions
 
             log.info("Relocating MOOV atom to start of file.")
@@ -32,7 +33,7 @@ class QtFastStart(object):
 
             if outputfile:
                 os.remove(inputfile)
-                os.rename(inputfile, outputfile)
+                os.rename(outputfile, inputfile)
 
 
 class PostProcessorFactory(object):

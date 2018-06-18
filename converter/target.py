@@ -13,6 +13,7 @@ from converter.streams import AudioStream, VideoStream, SubtitleStream, Containe
 from converter.source import SourceVideoStream, SourceAudioStream, SourceSubtitleStream, SourceContainer
 from converter.streamtemplates import TemplateFactory, VideoStreamTemplate, AudioStreamTemplate, SubtitleStreamTemplate
 from typing import Union
+
 import logging
 
 log = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class TargetContainerFactory(object):
                  video_transcode_to: str,
                  audio_accepted_formats: list,
                  audio_transcode_to: str,
-                 audio_force_create: bool,
+                 audio_force_create: list,
                  audio_copy_original: bool,
                  audio_accepted_languages: list,
                  subtitle_accepted_formats: list,
@@ -114,7 +115,6 @@ class TargetContainerFactory(object):
 
 
         if typ in config['Containers']:
-            cfg = config['Containers'][typ]
 
             self.type = typ
 

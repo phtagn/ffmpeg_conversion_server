@@ -1,8 +1,10 @@
 import sys
 
 from babelfish import Language
+from functools import singledispatch
 
 IS_PY2 = sys.version_info[0] == 2
+
 
 def getAlpha3TCode(code):  # We need to make sure that language codes are alpha3T
     """
@@ -32,22 +34,23 @@ def getAlpha3TCode(code):  # We need to make sure that language codes are alpha3
     return lang
 
 
+@singledispatch
 def validate(code):
     """
     :param code: alpha2, alpha3 or alpha3b code or list of codes
     :type code: list or string
-    :return:  list or string containing valid alpha3 codes
+    :return:  valid alpha3 code
     """
-    lang = 'und'
-    if code:
-        if isinstance(code, list):
-            lang = list(filter(lambda x: x != 'und', set(map(getAlpha3TCode, code))))
-            lang = 'und' if lang == [] else lang
-        elif IS_PY2:
-            if isinstance(code, basestring):
-                lang = getAlpha3TCode(code)
-        else:
-            if isinstance(code, bytes) or isinstance(code, str):
-                lang = getAlpha3TCode(code)
+    try:
+        lang = getAlpha3TCode(code)
+    except:
+        lang = 'und'
 
+    return lang
+
+
+@validate.register(list)
+def validate_list(code):
+    lang = list(filter(lambda x: x != 'und', set(map(getAlpha3TCode, code))))
+    lang = 'und' if lang == [] else lang
     return lang

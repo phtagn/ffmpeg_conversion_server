@@ -128,7 +128,7 @@ class H265StreamFormat(VideoStreamFormat):
                 }
 
     default_encoder = 'h265'
-    name = 'h265'
+    name = 'hevc'
     format_options = {
         'encoder': 'option(h265, hevcqsv, nvenc_h265, default=h265)',
         'preset': 'string(default=None)',

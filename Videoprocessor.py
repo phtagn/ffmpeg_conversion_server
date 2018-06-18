@@ -47,8 +47,24 @@ class VideoProcessor(object):
 
         if target in self.config['Containers'].keys():
             self.target = target
+
+
+        # stash config in variables:
+            self.video_accepted_formats = self.config['Containers'][target]['video'].get('accepted_track_formats')
+            self.video_transcode_to = self.config['Containers'][target]['video'].get('transcode_to')
+            self.video_prefer_method = self.config['Containers'][target]['video'].get('prefer_method')
+
+            self.audio_accepted_formats = self.config['Containers'][target]['audio'].get('accepted_track_formats')
+            self.audio_copy_original = self.config['Containers'][target]['audio'].get('audio_copy_original')
+            self.audio_force_create = self.config['Containers'][target]['audio'].get('force_create_tracks')
+            self.audio_transcode_to = self.config['Containers'][target]['audio'].get('transcode_to')
+
+            self.subtitle_accepted_formats = self.config['Containers'][target]['subtitle'].get('accepted_track_formats')
+            self.subtitle_transcode_to = self.config['Containers'][target]['subtitle'].get('transcode_to')
         else:
             raise Exception(f'Unsupported container, valid containers are {self.config.keys()}')
+
+
 
         path = os.path.abspath(infile)
         if os.path.isfile(path):
@@ -60,10 +76,10 @@ class VideoProcessor(object):
 
         self.ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
 
-        self.fh = FileHandler(copy_to=self.config['Files'].get('copy_to'),
-                              move_to=self.config['Files'].get('move_to'),
-                              permissions=self.config['Files'].get('permissions'),
-                              delete=self.config['Files'].get('delete_original'))
+        self.fh = FileHandler(copy_to=self.config['File'].get('copy_to'),
+                              move_to=self.config['File'].get('move_to'),
+                              permissions=self.config['File'].get('permissions'),
+                              delete=self.config['File'].get('delete_original'))
 
         if self.config['File'].get('work_directory'):
             outpath = self.config['File'].get('work_directory')
@@ -81,7 +97,21 @@ class VideoProcessor(object):
         :return: None
         """
         source_container = self.ffmpeg.probe(self.inputfile)
-        self.container = TargetContainerFactory(self.config, self.target).build_target_container(source_container)
+        ctnfactory = TargetContainerFactory(self.config,
+                                            video_accepted_formats=self.video_accepted_formats,
+                                            video_prefer_method=self.video_prefer_method,
+                                            video_transcode_to=self.video_transcode_to,
+                                            audio_accepted_formats=self.audio_accepted_formats,
+                                            audio_transcode_to=self.audio_transcode_to,
+                                            audio_force_create=self.audio_force_create,
+                                            audio_copy_original=self.audio_copy_original,
+                                            audio_accepted_languages=self.config['Languages'].get('audio'),
+                                            subtitle_accepted_formats=self.subtitle_accepted_formats,
+                                            subtitle_accepted_languages=self.config['Languages'].get('subtitle'),
+                                            subtitle_transcode_to=self.subtitle_transcode_to,
+                                            typ = self.target)
+
+        self.container = ctnfactory.build_target_container(source_container)
 
     def do_convert(self):
         """
@@ -137,7 +167,7 @@ class VideoProcessor(object):
 
         if postprocesses:
             for postprocess in postprocesses:
-                postprocess.process()
+                postprocess().process(self.full_work_path)
 
     def do_deploy(self):
         t = breakdown(self.inputfile)['file']

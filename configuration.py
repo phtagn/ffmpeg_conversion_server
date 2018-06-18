@@ -143,8 +143,24 @@ class cfgmgr(object):
         for t in ['audio', 'subtitle']:
             self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
 
-    def extract_track_config(self, typ):
-        pass
+    def extract_stream_config(self, typ):
+        fmts = (self._usercfg['Containers'][typ]['video'].get('accepted_track_formats'),
+                        [self._usercfg['Containers'][typ]['video'].get('transcode_to')],
+                        self._usercfg['Containers'][typ]['audio'].get('accepted_track_formats'),
+                        self._usercfg['Containers'][typ]['audio'].get('force_create_tracks'),
+                        [self._usercfg['Containers'][typ]['audio'].get('transcode_to')],
+                        self._usercfg['Containers'][typ]['subtitle'].get('accepted_track_formats'),
+                        [self._usercfg['Containers'][typ]['subtitle'].get('transcode_to')])
+
+        trackformats = []
+        for fmt in fmts:
+            trackformats.extend(fmt)
+
+        trackformats = list(set(trackformats))
+
+        r = {tfmt: self._usercfg['TrackFormats'][tfmt] for tfmt in trackformats}
+        print(type(r))
+        return r
 
     @staticmethod
     def properNone(section, key):
@@ -182,5 +198,7 @@ class ConfigException(Exception):
 if __name__ == '__main__':
     toto = {'TrackFormats': {'theora': {'max_bitrate': '1080'}}}
     cm = cfgmgr()
-    #cm.savedefaults()
+#    cm.savedefaults()
     cm.load('defaults.ini', overrides=toto)
+    tf = cm.extract_stream_config('mp4')
+    print(tf)
