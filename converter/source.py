@@ -22,39 +22,31 @@ class SourceContainer(Container):
 
         streams.append(stream)
 
+
 class SourceVideoStream(VideoStream):
 
-    def __init__(self,
-                 index,
-                 codec,
-                 pix_fmt,
-                 bitrate,
-                 height,
-                 width,
-                 profile,
-                 level):
-
-        super(SourceVideoStream, self).__init__(codec, pix_fmt, bitrate, height, width, profile, level)
+    def __init__(self, index, *args, **kwargs):
+        super(SourceVideoStream, self).__init__(*args, **kwargs)
         self.index = index
 
 
 class SourceAudioStream(AudioStream):
 
-    def __init__(self, index, codec, channels, bitrate, language):
-
-        super(SourceAudioStream, self).__init__(codec, channels, bitrate, language)
+    def __init__(self, index, *args, **kwargs):
+        super(SourceAudioStream, self).__init__(*args, **kwargs)
         self.index = index
 
 
 class SourceSubtitleStream(SubtitleStream):
 
-    def __init__(self, index, codec, language):
+    def __init__(self, index, *args, **kwargs):
         self.index = index
-        super(SourceSubtitleStream, self).__init__(codec, language)
+        super(SourceSubtitleStream, self).__init__(*args, **kwargs)
 
 
 class SourceContainerFactory(object):
     """Factory class to return an instance of ContainerInfo"""
+
     @staticmethod
     def fromparser(parser: IParser) -> SourceContainer:
         """
@@ -68,34 +60,35 @@ class SourceContainerFactory(object):
             if stream['codec_type'] == 'video':
                 index = stream['index']
                 s = SourceVideoStream(index=index,
-                                    codec=parser.codec(index),
-                                    pix_fmt=parser.pix_fmt(index),
-                                    bitrate=parser.bitrate(index),
-                                    height=parser.height(index),
-                                    width=parser.width(index),
-                                    profile=parser.profile(index),
-                                    level=parser.level(index))
+                                      codec=parser.codec(index),
+                                      pix_fmt=parser.pix_fmt(index),
+                                      bitrate=parser.bitrate(index),
+                                      height=parser.height(index),
+                                      width=parser.width(index),
+                                      profile=parser.profile(index),
+                                      level=parser.level(index),
+                                      disposition=parser.disposition(index))
 
                 container.add_stream(s)
 
             if stream['codec_type'] == 'audio':
                 index = stream['index']
                 s = SourceAudioStream(index=index,
-                                    channels=parser.channels(index),
-                                    language=parser.language(index),
-                                    codec=parser.codec(index),
-                                    bitrate=parser.bitrate(index))
+                                      channels=parser.channels(index),
+                                      language=parser.language(index),
+                                      codec=parser.codec(index),
+                                      bitrate=parser.bitrate(index),
+                                      disposition=parser.disposition(index))
 
                 container.add_stream(s)
 
             if stream['codec_type'] == 'subtitle':
                 index = stream['index']
                 s = SourceSubtitleStream(index=index,
-                                       codec=parser.codec(index),
-                                       language=parser.language(index))
+                                         codec=parser.codec(index),
+                                         language=parser.language(index),
+                                         disposition=parser.disposition(index))
 
                 container.add_stream(s)
 
         return container
-
-

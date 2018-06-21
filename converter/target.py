@@ -53,28 +53,25 @@ class TargetContainer(Container):
 
 class TargetAudioStream(AudioStream):
 
-    def __init__(self, codec, channels, bitrate, language, sourceindex, willtranscode):
-        super(TargetAudioStream, self).__init__(codec, channels, bitrate, language)
-        self.sourceindex = sourceindex
+    def __init__(self, sourcestream, willtranscode, *args, **kwargs):
+        super(TargetAudioStream, self).__init__(*args, **kwargs)
+        self.sourcestream = sourcestream
         self.willtranscode = willtranscode
 
 
 class TargetVideoStream(VideoStream):
 
-    def __init__(self, codec: str, pix_fmt: str, bitrate: int, height: int, width: int, profile: str, level: float,
-                 sourceindex: int, willtranscode: bool, src_height: int, src_width: int):
-        super(TargetVideoStream, self).__init__(codec, pix_fmt, bitrate, height, width, profile, level)
-        self.sourceindex = sourceindex
+    def __init__(self, sourcestream, willtranscode: bool, *args, **kwargs):
+        super(TargetVideoStream, self).__init__(*args, **kwargs)
+        self.sourcestream = sourcestream
         self.willtranscode = willtranscode
-        self.src_width = src_width
-        self.src_height = src_height
 
 
 class TargetSubtitleStream(SubtitleStream):
 
-    def __init__(self, codec, language, sourceindex, willtranscode):
-        super(TargetSubtitleStream, self).__init__(codec, language)
-        self.sourceindex = sourceindex
+    def __init__(self, sourcestream, willtranscode, *args, **kwargs):
+        super(TargetSubtitleStream, self).__init__(*args, **kwargs)
+        self.sourcestream = sourcestream
         self.willtranscode = willtranscode
 
 
@@ -251,10 +248,9 @@ class VideoStreamGenerator(IStreamGenerator):
                                  width=stream.width,
                                  profile=stream.profile,
                                  level=stream.level,
-                                 sourceindex=stream.index,
-                                 willtranscode=False,
-                                 src_height=stream.height,
-                                 src_width=stream.width)
+                                 sourcestream=stream,
+                                 disposition=stream.disposition,
+                                 willtranscode=False)
 
     @staticmethod
     def conformtotemplate(stream, template):
@@ -269,10 +265,8 @@ class VideoStreamGenerator(IStreamGenerator):
                                      width=template.max_width if template.max_width else stream.width,
                                      profile=template.profiles[0] if template.profiles else None,
                                      level=template.max_level if template.max_level else None,
-                                     sourceindex=stream.index,
-                                     willtranscode=True,
-                                     src_width=stream.width,
-                                     src_height=stream.height)
+                                     sourcestream=stream,
+                                     willtranscode=True)
 
         else:
 
@@ -321,10 +315,8 @@ class VideoStreamGenerator(IStreamGenerator):
                                      bitrate=bitrate,
                                      level=level,
                                      profile=profile,
-                                     sourceindex=stream.index,
-                                     willtranscode=willtranscode,
-                                     src_height=stream.height,
-                                     src_width=stream.width)
+                                     sourcestream=stream,
+                                     willtranscode=willtranscode)
 
 
 class AudioStreamGenerator(IStreamGenerator):
@@ -336,7 +328,8 @@ class AudioStreamGenerator(IStreamGenerator):
                                  channels=stream.channels,
                                  bitrate=stream.bitrate,
                                  language=stream.language,
-                                 sourceindex=stream.index,
+                                 sourcestream=stream,
+                                 disposition=stream.disposition,
                                  willtranscode=False
                                  )
 
@@ -350,7 +343,8 @@ class AudioStreamGenerator(IStreamGenerator):
                                      bitrate=template.max_bitrate if template.max_bitrate else None,
                                      channels=template.max_channels if template.max_channels else None,
                                      language=stream.language,
-                                     sourceindex=stream.index,
+                                     sourcestream=stream,
+                                     disposition={},
                                      willtranscode=True)
         willtranscode = False
 
@@ -370,7 +364,8 @@ class AudioStreamGenerator(IStreamGenerator):
                                  bitrate=bitrate,
                                  channels=channels,
                                  language=stream.language,
-                                 sourceindex=stream.index,
+                                 sourcestream=stream,
+                                 disposition={},
                                  willtranscode=willtranscode)
 
 
@@ -380,7 +375,8 @@ class SubtitleStreamGenerator(IStreamGenerator):
         assert isinstance(stream, SourceSubtitleStream)
         return TargetSubtitleStream(codec=stream.codec,
                                     language=stream.language,
-                                    sourceindex=stream.index,
+                                    sourcestream=stream,
+                                    disposition=stream.disposition,
                                     willtranscode=False)
 
     @staticmethod
@@ -391,13 +387,15 @@ class SubtitleStreamGenerator(IStreamGenerator):
         if stream.codec != template.codec:
             return TargetSubtitleStream(codec=template.codec,
                                         language=stream.language,
-                                        sourceindex=stream.index,
-                                        willtranscode=True)
+                                        sourcestream=stream,
+                                        willtranscode=True,
+                                        disposition={})
         else:
             return TargetSubtitleStream(codec=stream.codec,
                                         language=stream.language,
-                                        sourceindex=stream.index,
-                                        willtranscode=False)
+                                        sourcestream=stream,
+                                        willtranscode=False,
+                                        disposition={})
 
 
 def filterlanguages(streamlist, languagelist, relax=False):

@@ -16,7 +16,8 @@ class VideoStream(Stream):
                  height,
                  width,
                  profile,
-                 level):
+                 level,
+                 disposition):
 
         self.codec = codec
         self.pix_fmt = pix_fmt
@@ -25,6 +26,7 @@ class VideoStream(Stream):
         self.width = width
         self.profile = profile
         self.level = level
+        self.disposition = disposition
         self.type = 'video'
 
     def __eq__(self, other):
@@ -60,13 +62,16 @@ class VideoStream(Stream):
     def __str__(self):
         return f'Codec: {self.codec}\n' \
         f'Bitrate: {self.bitrate}'
+
+
 class AudioStream(Stream):
 
-    def __init__(self, codec, channels, bitrate, language):
+    def __init__(self, codec, channels, bitrate, language, disposition):
         self.language = language
         self.channels = channels
         self.bitrate = bitrate
         self.codec = codec
+        self.disposition = disposition
         self.type = 'audio'
 
     def __eq__(self, other):
@@ -96,9 +101,10 @@ class AudioStream(Stream):
 
 class SubtitleStream(Stream):
 
-    def __init__(self, codec, language):
+    def __init__(self, codec, language, disposition):
         self.codec = codec
         self.language = language
+        self.disposition = disposition
         self.type = 'subtitle'
 
     def __eq__(self, other):

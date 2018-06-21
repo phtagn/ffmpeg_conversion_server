@@ -1,11 +1,26 @@
-from converter import encoders
-from typing import Dict
+from typing import List
+from converter_v2.encoders import *
 
 
 class BaseStreamFormat(object):
     encoders = {}
     default_encoder = ''
     name = ''
+    supported_options = []
+
+    def __init__(self, options: List[IStreamOption] = list):
+        self.options = []
+        for opt in options:
+            self.add_option(opt)
+
+    def add_option(self, option: IStreamOption):
+
+        assert isinstance(option, IStreamOption)
+
+        if type(option) in self.supported_options:
+            self.options.append(option)
+        else:
+            log.error('Option %s is not supported', option.name)
 
     @classmethod
     def getEncoder(cls, encoder: str = 'default'):
@@ -26,32 +41,20 @@ class BaseStreamFormat(object):
 
 
 class VideoStreamFormat(BaseStreamFormat):
-    format_options = {
-        'max_bitrate': 'integer(default=1500)',
-        'filter': 'string(default=None)',
-        'pix_fmts': 'string(default=None)',
-        'max_width': 'integer(default=1280)',
-        'max_height': 'integer(default=720)',
-        'mode': 'string(default=None)'
-    }
+    supported_options = [Codec, Bitrate]
 
 
 class AudioStreamFormat(BaseStreamFormat):
-    format_options = {
-        'max_channels': 'integer(default=2)',
-        'max_bitrate': 'integer(default=200)',
-        'filter': 'string(default=None)'
-    }
+    supported_options = [Codec, Bitrate, Channels, Language]
 
 
 class SubtitleStreamFormat(BaseStreamFormat):
-    format_options = {'encoding': 'string(default=UTF-8)'}
+    supported_options = [Codec, Language]
 
 
 class TheoraStreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
+    encoders = {'copy': CopyEncoder,
                 'theora': encoders.TheoraCodec}
-
     default_encoder = 'theora'
     name = 'theora'
 

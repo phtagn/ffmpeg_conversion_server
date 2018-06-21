@@ -29,9 +29,12 @@ class OptionGenerator(object):
                      'src_width': tgtstream.src_width})
 
             else:
-                enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder('copy')({'map': tgtstream.sourceindex,
-                                                                                   'src_height': tgtstream.src_height,
-                                                                                   'src_width': tgtstream.src_width})
+                enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder('copy')(
+                    {'map': tgtstream.sourcestream.index,
+                     'src_height': tgtstream.sourcestream.height,
+                     'src_width': tgtstream.sourcestream.width,
+                     'disposition': tgtstream.sourcestream.disposition})
+
             encoderoptions = self.config['Encoders'].get(encoder_name)
             if encoderoptions:
                 enc.add_options(encoderoptions)
@@ -45,10 +48,12 @@ class OptionGenerator(object):
                     {'bitrate': tgtstream.bitrate,
                      'channels': tgtstream.channels,
                      'language': tgtstream.language,
-                     'map': tgtstream.sourceindex})
+                     'map': tgtstream.sourcestream.index})
             else:
-                enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder('copy')({'language': tgtstream.language,
-                                                                                   'map': tgtstream.sourceindex})
+                enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder('copy')(
+                    {'language': tgtstream.language,
+                     'map': tgtstream.sourcestream.index,
+                     'disposition': tgtstream.sourcestream.disposition})
 
             encoderoptions = self.config['Encoders'].get(encoder_name)
             if encoderoptions:
@@ -61,11 +66,11 @@ class OptionGenerator(object):
                 enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder(
                     self.config['Encoders'].get('encoder', 'default'))(
                     {'language': tgtstream.language,
-                     'map': tgtstream.sourceindex})
+                     'map': tgtstream.sourcestream.index})
             else:
                 enc = StreamFormatFactory.get_format(tgtstream.codec).getEncoder('copy')(
                     {'language': tgtstream.language,
-                     'map': tgtstream.sourceindex})
+                     'map': tgtstream.sourcestream.index})
 
             encoderoptions = self.config['Encoders'].get(encoder_name)
             if encoderoptions:

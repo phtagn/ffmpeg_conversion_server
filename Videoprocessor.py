@@ -127,31 +127,32 @@ class VideoProcessor(object):
             self.full_work_path = None
 
     def do_tag(self):
+        if self.tagging_info:
 
-        _id = self.tagging_info.get('id', None)
-        id_type = self.tagging_info.get('id_type', None)
-        season = self.tagging_info.get('season', None)
-        episode = self.tagging_info.get('episode', None)
-        language = self.config['Languages'].get('tagging')
+            _id = self.tagging_info.get('id', None)
+            id_type = self.tagging_info.get('id_type', None)
+            season = self.tagging_info.get('season', None)
+            episode = self.tagging_info.get('episode', None)
+            language = self.config['Languages'].get('tagging')
 
-        if season:
-            fetcher = self.config['Tagging'].get('preferred_show_tagger', 'tvdb')
-        else:
-            fetcher = self.config['Tagging'].get('preferred_movie_tagger', 'tmdb')
+            if season:
+                fetcher = self.config['Tagging'].get('preferred_show_tagger', 'tvdb')
+            else:
+                fetcher = self.config['Tagging'].get('preferred_movie_tagger', 'tmdb')
 
-        ftch = FetchersFactory.getfetcher(fetcher, _id, id_type, language=language, season=season, episode=episode)
-        tags = ftch.gettags()
+            ftch = FetchersFactory.getfetcher(fetcher, _id, id_type, language=language, season=season, episode=episode)
+            tags = ftch.gettags()
 
-        if tags.poster_url and self.config['Tagging'].get('download_artwork') is True:
-            posterfile = ftch.downloadArtwork(tags.poster_url)
-        else:
-            posterfile = None
+            if tags.poster_url and self.config['Tagging'].get('download_artwork') is True:
+                posterfile = ftch.downloadArtwork(tags.poster_url)
+            else:
+                posterfile = None
 
-        t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path, artworkfile=posterfile)
-        if t:
-            t.writetags()
-        else:
-            log.info('Tagging is not supported for container %s at this time, skipping', self.container.format.format_name)
+            t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path, artworkfile=posterfile)
+            if t:
+                t.writetags()
+            else:
+                log.info('Tagging is not supported for container %s at this time, skipping', self.container.format.format_name)
 
     def do_postprocess(self):
         if not self.full_work_path:
@@ -256,11 +257,17 @@ class MachineFactory(object):
 
         return videoprocessor
 
+def process(videoprocessor):
+    while True:
+        videoprocessor.next_state()
+        if videoprocessor.state == 'refreshed':
+            break
+
 if __name__ == '__main__':
     showid = 75978
     id_type = 'tvdb_id'
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
-    infile = '/Users/jon/Downloads/family.guy.s16e19.720p.web.x264-tbs.mkv'
+    infile = '/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv'
     configname = 'defaults.ini'
     target = 'mp4'
     info = {'id': showid,
@@ -272,11 +279,12 @@ if __name__ == '__main__':
     VP = MachineFactory.get(infile=infile, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
-while True:
-    VP.next_state()
-    print(VP.state)
-    if VP.state == 'refreshed':
-        break
+
+    while True:
+        VP.next_state()
+        print(VP.state)
+        if VP.state == 'refreshed':
+            break
 
 
 print('yeah')

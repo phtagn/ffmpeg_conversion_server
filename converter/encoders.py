@@ -116,10 +116,14 @@ class AudioEncoder(BaseEncoder):
         optlist.extend(['-c:a:' + stream, self.ffmpeg_codec_name])
         if 'path' in safe:
             optlist.extend(['-i', str(safe['path'])])
+
         if 'map' in safe:
             optlist.extend(['-map', s + ':' + str(safe['map'])])
+
         if 'disposition' in safe:
-            optlist.extend(['-disposition:a:' + stream, str(safe['disposition'])])
+            for disp in safe['disposition']:
+                optlist.extend(['-disposition:a:' + stream, f"disposition:{disp}=" + str(safe['disposition'][disp])])
+
         if 'channels' in safe:
             optlist.extend(['-ac:a:' + stream, str(safe['channels'])])
         if 'bitrate' in safe:
@@ -158,7 +162,8 @@ class SubtitleEncoder(BaseEncoder):
         'map': int,
         'source': int,
         'path': str,
-        'encoding': str
+        'encoding': str,
+        'disposition': dict
     }
 
     defaults = {}
@@ -477,7 +482,7 @@ class AudioCopyEncoder(BaseEncoder):
                        'source': str,
                        'map': int,
                        'bsf': str,
-                       'disposition': str}
+                       'disposition': dict}
 
     def __init__(self, opts) -> None:
         super(AudioCopyEncoder, self).__init__(opts)
@@ -503,8 +508,11 @@ class AudioCopyEncoder(BaseEncoder):
             else:
                 lang = str(safe['language'])
         optlist.extend(['-metadata:s:a:' + stream, "language=" + lang])
+
         if 'disposition' in safe:
-            optlist.extend(['-disposition:a:' + stream, str(safe['disposition'])])
+            for disp in safe['disposition']:
+                if safe['disposition'][disp]:
+                    optlist.extend([f'-disposition:a:{stream}', disp])
         return optlist
 
 
