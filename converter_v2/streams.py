@@ -2,27 +2,50 @@ from typing import Optional
 from converter_v2.streamoptions import *
 import logging
 
+logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 class Stream(object):
     supported_options = []
-
+    multiple = []
     def __init__(self, options: list):
-        self._options = []
+        self._options = {}
         if options:
             for opt in options:
                 self.add_option(opt)
 
     def add_option(self, opt):
         if type(opt) in self.supported_options:
-            self._options.append(opt)
-            setattr(self, opt.name, opt)
+            if opt.name not in self._options:
+                self._options.update({opt.name: opt})
+
+
 
     @property
     def options(self):
         return self._options
 
+    def get_option_by_name(self, name):
+        return self.options.get(name, None)
+
+    def __eq__(self, other):
+        r = False
+        if isinstance(other, type(self)):
+            for name, opt in self.options.items():
+                if other.get_option_by_name(name):
+                    o = other.options[name]
+                    s = opt
+                    if o == s:
+                        r = True
+                    else:
+                        r = False
+                        break
+                else:
+                    r = False
+                    break
+        return r
 
 class VideoStream(Stream):
     supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile]
@@ -80,11 +103,44 @@ class Container(object):
     def video_streams(self):
         return {k: v for k, v in self._streams.items() if isinstance(v, VideoStream)}
 
+    @property
+    def streams(self):
+        return self._streams
+
     def get_stream(self, index):
         if index in self._streams:
-            return self._streams[index]
-        else:
-            raise Exception('No such stream %s', index)
+            return self._streams.get(index, None)
+
+    def __eq__(self, other):
+        """Compare containers without ordering"""
+        video_stream = []
+        audio_stream = []
+        subtitle_stream = []
+
+        if isinstance(other, Container):
+            if len(self.streams) != len(other.streams):
+                return False
+
+            for sstream in self.video_streams.values():
+                for ostream in other.video_streams.values():
+                    if sstream == ostream:
+                        video_stream.append(True)
+
+            for sstream in self.audio_streams.values():
+                for ostream in other.audio_streams.values():
+                    if sstream == ostream:
+                        audio_stream.append(True)
+
+            for sstream in self.subtitle_streams.values():
+                for ostream in other.subtitle_streams.values():
+                    if sstream == ostream:
+                        subtitle_stream.append(True)
+
+            if len(self.streams) == len(video_stream) + len(audio_stream) + len(subtitle_stream):
+                return True
+            else:
+                return False
+        return False
 
 
 def ContainerFromFFprobe(filepath, ffmpegpath, ffprobepath) -> Container:
@@ -169,6 +225,10 @@ class VideoStreamTemplate(object):
 
 if __name__ == '__main__':
     ctn = ContainerFromFFprobe("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv", '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
+    ctn2 = ContainerFromFFprobe("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv",
+                               '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 
+    if ctn == ctn2:
+        print(True)
 
     print('yeah')

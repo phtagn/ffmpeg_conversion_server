@@ -72,6 +72,12 @@ class Codec(IStreamOption):
         super(Codec, self).parse(stream_type, stream_number)
         return [f'-codec:{self.stream_specifier}', self.value]
 
+    def __eq__(self, other):
+        if not isinstance(other, Codec):
+            return False
+        if self.value == other.value:
+            return True
+        return False
 
 OptionFactory.register_option(Codec)
 
