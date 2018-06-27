@@ -1,85 +1,137 @@
 #!/usr/bin/env python
 from converter_v2.streamoptions import *
+from typing import Union
+from abc import ABC
+
 log = logging.getLogger(__name__)
 
 
-class FFMpegCodec(object):
+class _FFMpegCodec(ABC):
     """
     Base audio/video codec class.
     """
     codec_name = None
     ffmpeg_codec_name = None
-    supported_options = []
+    supported_options = [Map]
+    codec_type = ''
 
-    def __init__(self, options: list):
+    def __init__(self, *options: IStreamOption):
         self.options = []
-        for opt in options:
-            self.add_option(opt)
+        self.add_option(*options)
 
-    def add_option(self, option):
+    def add_option(self, *options: IStreamOption):
+        for option in options:
+            assert isinstance(option, IStreamOption)
+            if type(option) in self.__class__.supported_options:
+                    self.options.append(option)
+            else:
+                pass
+                # log.error('Option %s is not supported', option.__name__)
 
-        #assert isinstance(option)
+    def get_encoder(self):
+        pass
 
-        if type(option) in self.__class__.supported_options:
-            self.options.append(option)
-        else:
-            log.error('Option %s is not supported', option.name)
+    def parse(self, stream_number: int):
+        if self.codec_type == 'video':
+            stream_type = 'v'
+        elif self.codec_type == 'audio':
+            stream_type = 'a'
+        elif self.codec_type == 'subtitle':
+            stream_type = 's'
+
+        ffmpeg_opt_list = [f'-c:{stream_type}:{stream_number}', self.ffmpeg_codec_name]
+
+        for option in self.options:
+            ffmpeg_opt_list.extend(option.parse(stream_type=self.codec_type, stream_number=stream_number))
+
+        return ffmpeg_opt_list
 
 
-class VideoCodec(FFMpegCodec):
-    supported_options = []
+class _VideoCodec(_FFMpegCodec):
+    supported_options = _FFMpegCodec.supported_options.copy()
     codec_type = 'video'
 
-    def __init__(self, options):
-        super(VideoCodec, self).__init__(options)
+    def __init__(self, *options):
+        super(_VideoCodec, self).__init__(*options)
 
 
-class AudioCodec(FFMpegCodec):
-    supported_options = [Channels]
+class _AudioCodec(_FFMpegCodec):
+    supported_options = _FFMpegCodec.supported_options.copy()
+    supported_options.extend([Channels, Language, Disposition])
     codec_type = 'audio'
 
-    def __init__(self, options):
-        super(AudioCodec, self).__init__(options)
+    def __init__(self, *options):
+        super(_AudioCodec, self).__init__(*options)
 
 
-class SubtitleCodec(FFMpegCodec):
-    supported_options = []
+class _SubtitleCodec(_FFMpegCodec):
+    supported_options = _FFMpegCodec.supported_options.copy()
+    supported_options.extend([Language, Disposition])
     codec_type = 'subtitle'
 
-    def __init__(self, options):
-        super(SubtitleCodec, self).__init__(options)
+    def __init__(self, *options):
+        super(_SubtitleCodec, self).__init__(*options)
 
-class CopyCodec(FFMpegCodec):
+
+class _Copy(_FFMpegCodec):
     """
     Copy audio stream directly from the source.
     """
     codec_name = 'copy'
     ffmpeg_codec_name = 'copy'
 
-    def __init__(self, options):
-        super(CopyCodec, self).__init__(options)
 
-class VorbisCodec(AudioCodec):
+    def __init__(self, *options):
+        super(_Copy, self).__init__(*options)
+
+
+class VideoCopy(_Copy):
+    codec_type = 'video'
+    supported_options = _VideoCodec.supported_options
+
+class AudioCopy(_Copy):
+    codec_type = 'audio'
+    supported_options = _AudioCodec.supported_options
+
+class SubtitleCopy(_Copy):
+    codec_type = 'subtitle'
+    supported_options = _SubtitleCodec.supported_options
+
+class H264(_VideoCodec):
+    """
+    H.264/AVC video codec.
+    """
+    codec_name = 'h264'
+    ffmpeg_codec_name = 'libx264'
+    supported_options = _VideoCodec.supported_options[:]
+    supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition])
+
+
+class Vorbis(_AudioCodec):
     """
     Vorbis audio codec.
     """
     codec_name = 'vorbis'
     ffmpeg_codec_name = 'libvorbis'
-    supported_options = AudioCodec.supported_options.copy()
+    supported_options = _AudioCodec.supported_options
     supported_options.append(Language)
 
-    def __init__(self, options):
-        super(VorbisCodec, self).__init__(options)
+    def __init__(self, *options):
+        super(Vorbis, self).__init__(*options)
 
-class AacCodec(AudioCodec):
+
+class Aac(_AudioCodec):
     """
     AAC audio codec.
     """
     codec_name = 'aac'
     ffmpeg_codec_name = 'aac'
+    supported_options = _AudioCodec.supported_options.copy()
+    def __init__(self, *options):
+        super(Aac, self).__init__(*options)
 
 
-class FdkAacCodec(AudioCodec):
+class FdkAac(_AudioCodec):
     """
     AAC audio codec.
     """
@@ -87,7 +139,7 @@ class FdkAacCodec(AudioCodec):
     ffmpeg_codec_name = 'libfdk_aac'
 
 
-class FAacCodec(AudioCodec):
+class Faac(_AudioCodec):
     """
     AAC audio codec.
     """
@@ -95,8 +147,7 @@ class FAacCodec(AudioCodec):
     ffmpeg_codec_name = 'libfaac'
 
 
-
-class Ac3Codec(AudioCodec):
+class Ac3(_AudioCodec):
     """
     AC3 audio codec.
     """
@@ -104,7 +155,7 @@ class Ac3Codec(AudioCodec):
     ffmpeg_codec_name = 'ac3'
 
 
-class EAc3Codec(AudioCodec):
+class EAc3(_AudioCodec):
     """
     Dolby Digital Plus/EAC3 audio codec.
     """
@@ -112,7 +163,7 @@ class EAc3Codec(AudioCodec):
     ffmpeg_codec_name = 'eac3'
 
 
-class FlacCodec(AudioCodec):
+class Flac(_AudioCodec):
     """
     FLAC audio codec.
     """
@@ -120,8 +171,7 @@ class FlacCodec(AudioCodec):
     ffmpeg_codec_name = 'flac'
 
 
-
-class DtsCodec(AudioCodec):
+class Dts(_AudioCodec):
     """
     DTS audio codec.
     """
@@ -130,7 +180,7 @@ class DtsCodec(AudioCodec):
     dca_experimental_enable = ['-strict', '-2']
 
 
-class Mp3Codec(AudioCodec):
+class Mp3(_AudioCodec):
     """
     MP3 (MPEG layer 3) audio codec.
     """
@@ -138,9 +188,7 @@ class Mp3Codec(AudioCodec):
     ffmpeg_codec_name = 'libmp3lame'
 
 
-
-
-class Mp2Codec(AudioCodec):
+class Mp2(_AudioCodec):
     """
     MP2 (MPEG layer 2) audio codec.
     """
@@ -149,7 +197,7 @@ class Mp2Codec(AudioCodec):
 
 
 # Video Codecs
-class TheoraCodec(VideoCodec):
+class Theora(_VideoCodec):
     """
     Theora video codec.
     """
@@ -157,25 +205,7 @@ class TheoraCodec(VideoCodec):
     ffmpeg_codec_name = 'libtheora'
 
 
-class H264Codec(VideoCodec):
-    """
-    H.264/AVC video codec.
-    """
-    codec_name = 'h264'
-    ffmpeg_codec_name = 'libx264'
-
-
-class X264(H264Codec):
-    """
-    Alias for H264
-    """
-    codec_name = 'x264'
-
-    def __init__(self, opts) -> None:
-        super(X264, self).__init__(opts)
-
-
-class NVEncH264(H264Codec):
+class NVEncH264(H264):
     """
     Nvidia H.264/AVC video codec.
     """
@@ -183,7 +213,7 @@ class NVEncH264(H264Codec):
     ffmpeg_codec_name = 'nvenc_h264'
 
 
-class H264VAAPI(H264Codec):
+class H264VAAPI(H264):
     """
     H.264/AVC video codec.
     """
@@ -191,7 +221,7 @@ class H264VAAPI(H264Codec):
     ffmpeg_codec_name = 'h264_vaapi'
 
 
-class H264QSV(H264Codec):
+class H264QSV(H264):
     """
     H.264/AVC video codec.
     """
@@ -199,7 +229,7 @@ class H264QSV(H264Codec):
     ffmpeg_codec_name = 'h264_qsv'
 
 
-class H265Codec(VideoCodec):
+class H265(_VideoCodec):
     """
     H.265/AVC video codec.
     """
@@ -207,7 +237,7 @@ class H265Codec(VideoCodec):
     ffmpeg_codec_name = 'libx265'
 
 
-class HEVCQSV(H265Codec):
+class HEVCQSV(H265):
     """
     HEVC video codec.
     """
@@ -215,7 +245,7 @@ class HEVCQSV(H265Codec):
     ffmpeg_codec_name = 'hevc_qsv'
 
 
-class NVEncH265(H265Codec):
+class NVEncH265(H265):
     """
     Nvidia H.265/AVC video codec.
     """
@@ -223,7 +253,7 @@ class NVEncH265(H265Codec):
     ffmpeg_codec_name = 'hevc_nvenc'
 
 
-class DivxCodec(VideoCodec):
+class Divx(_VideoCodec):
     """
     DivX video codec.
     """
@@ -231,7 +261,7 @@ class DivxCodec(VideoCodec):
     ffmpeg_codec_name = 'mpeg4'
 
 
-class Vp8Codec(VideoCodec):
+class Vp8(_VideoCodec):
     """
     Google VP8 video codec.
     """
@@ -239,7 +269,7 @@ class Vp8Codec(VideoCodec):
     ffmpeg_codec_name = 'libvpx'
 
 
-class H263Codec(VideoCodec):
+class H263(_VideoCodec):
     """
     H.263 video codec.
     """
@@ -247,8 +277,7 @@ class H263Codec(VideoCodec):
     ffmpeg_codec_name = 'h263'
 
 
-
-class FlvCodec(VideoCodec):
+class Flv(_VideoCodec):
     """
     Flash Video codec.
     """
@@ -256,19 +285,15 @@ class FlvCodec(VideoCodec):
     ffmpeg_codec_name = 'flv'
 
 
-
-class Mpeg1Codec(VideoCodec):
+class Mpeg1(_VideoCodec):
     """
     MPEG-1 video codec.
     """
     codec_name = 'mpeg1'
     ffmpeg_codec_name = 'mpeg1video'
 
-    def __init__(self, opts) -> None:
-        super(Mpeg1Codec, self).__init__(opts)
 
-
-class Mpeg2Codec(VideoCodec):
+class Mpeg2(_VideoCodec):
     """
     MPEG-2 video codec.
     """
@@ -277,7 +302,7 @@ class Mpeg2Codec(VideoCodec):
 
 
 # Subtitle Codecs
-class MOVTextCodec(SubtitleCodec):
+class MOVText(_SubtitleCodec):
     """
     mov_text subtitle codec.
     """
@@ -285,7 +310,7 @@ class MOVTextCodec(SubtitleCodec):
     ffmpeg_codec_name = 'mov_text'
 
 
-class SrtCodec(SubtitleCodec):
+class Srt(_SubtitleCodec):
     """
     SRT subtitle codec.
     """
@@ -293,7 +318,7 @@ class SrtCodec(SubtitleCodec):
     ffmpeg_codec_name = 'srt'
 
 
-class WebVTTCodec(SubtitleCodec):
+class WebVTT(_SubtitleCodec):
     """
     SRT subtitle codec.
     """
@@ -304,7 +329,7 @@ class WebVTTCodec(SubtitleCodec):
         super(WebVTTCodec, self).__init__(opts)
 
 
-class SSA(SubtitleCodec):
+class SSA(_SubtitleCodec):
     """
     SSA (SubStation Alpha) subtitle.
     """
@@ -315,7 +340,7 @@ class SSA(SubtitleCodec):
         super(SSA, self).__init__(opts)
 
 
-class SubRip(SubtitleCodec):
+class SubRip(_SubtitleCodec):
     """
     SubRip subtitle.
     """
@@ -326,7 +351,7 @@ class SubRip(SubtitleCodec):
         super(SubRip, self).__init__(opts)
 
 
-class DVBSub(SubtitleCodec):
+class DVBSub(_SubtitleCodec):
     """
     DVB subtitles.
     """
@@ -337,7 +362,7 @@ class DVBSub(SubtitleCodec):
         super(DVBSub, self).__init__(opts)
 
 
-class DVDSub(SubtitleCodec):
+class DVDSub(_SubtitleCodec):
     """
     DVD subtitles.
     """
@@ -348,9 +373,23 @@ class DVDSub(SubtitleCodec):
         super(DVDSub, self).__init__(opts)
 
 
+class CodecFactory(object):
+    supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy, Vorbis, Aac, H264, Ac3]
+
+    @classmethod
+    def get_codec_by_name(cls, name: str, *options: Union[IStreamOption, IStreamValueOption]):
+        try:
+            codec_class = next(cdc for cdc in cls.supported_codecs if cdc.__name__.lower() == name.lower())
+        except StopIteration:
+            log.error('Could not find codec %s', name)
+            return None
+        else:
+            return codec_class(*options)
+
+
 if __name__ == '__main__':
     chan = OptionFactory.get_option('channels')('a', 5)
-    toto = VorbisCodec([chan])
+    toto = Vorbis([chan])
     lan = OptionFactory.get_option('language')('a', 'fre')
     toto.add_option(lan)
 

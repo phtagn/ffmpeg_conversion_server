@@ -267,7 +267,7 @@ if __name__ == '__main__':
     showid = 75978
     id_type = 'tvdb_id'
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
-    infile = '/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv'
+    infile = '/Volumes/Downloads/Jumanji(1996).BluRay.VF.1080p.x265-JOYSTICK-/Jumanji(1996).BluRay.VF.1080p.x265-JOYSTICK-.mkv'
     configname = 'defaults.ini'
     target = 'mp4'
     info = {'id': showid,

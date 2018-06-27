@@ -1,6 +1,5 @@
 import languagecode
 import logging
-
 from abc import abstractmethod, ABCMeta
 from typing import Union
 
@@ -31,6 +30,51 @@ class IStreamOption(metaclass=ABCMeta):
         if stream_number is not None:
             self.stream_specifier = f'{self.stream_specifier}:{stream_number}'
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value == other.value:
+            return True
+        return False
+
+    def __copy__(self):
+        return type(self)(self.value)
+
+
+class IStreamValueOption(IStreamOption):
+
+    @abstractmethod
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
+        super(IStreamValueOption, self).parse(stream_type, stream_number)
+
+    def __lt__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value < other.value:
+            return True
+        return False
+
+    def __gt__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value > other.value:
+            return True
+        return False
+
+    def __le__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value <= other.value:
+            return True
+        return False
+
+    def __ge__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value >= other.value:
+            return True
+        return False
+
 
 class OptionFactory(object):
     options = {}
@@ -56,6 +100,13 @@ class OptionFactory(object):
         assert issubclass(option, IStreamOption)
         cls.options.update({option.name: option})
 
+    @classmethod
+    def get_option_by_type(cls, opt):
+        this_module = __import__(__name__)
+        option_class = getattr(this_module, str(opt.__name__))
+
+        return option_class
+
 
 class Codec(IStreamOption):
     name = 'codec'
@@ -72,17 +123,25 @@ class Codec(IStreamOption):
         super(Codec, self).parse(stream_type, stream_number)
         return [f'-codec:{self.stream_specifier}', self.value]
 
-    def __eq__(self, other):
-        if not isinstance(other, Codec):
-            return False
-        if self.value == other.value:
-            return True
-        return False
 
 OptionFactory.register_option(Codec)
 
 
-class Channels(IStreamOption):
+class Map(IStreamValueOption):
+
+    def __init__(self, val: tuple):
+        if len(val) > 2:
+            raise ValueError('Tuple can only contain 2 ints')
+        if not isinstance(val[0], int) or not isinstance(val[1], int):
+            raise Exception
+
+        self.value = val
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+        return ['-map', f'{self.value[0]}:{self.value[1]}']
+
+
+class Channels(IStreamValueOption):
     """Audio channel option (i.e. mono, stereo...)"""
     name = 'channels'
     ffprobe_name = 'channels'
@@ -106,13 +165,6 @@ class Channels(IStreamOption):
 
         return [f'-ac:{self.stream_specifier}', str(self.value)]
 
-    def __eq__(self, other):
-        if not isinstance(other, Channels):
-            return False
-        if self.value == other.value:
-            return True
-        return False
-
 
 OptionFactory.register_option(Channels)
 
@@ -133,14 +185,6 @@ class Language(IStreamOption):
         super(Language, self).parse(stream_type, stream_number)
 
         return [f'-metadata:s:{self.stream_specifier}', f'language={self.value}']
-
-    def __eq__(self, other):
-        if not isinstance(other, Language):
-            return False
-        elif self.value == other.value:
-            return True
-        else:
-            return False
 
 
 OptionFactory.register_option(Language)
@@ -163,19 +207,33 @@ class Bitrate(IStreamOption):
         super(Bitrate, self).parse(stream_type, stream_number)
         return [f'-b:{self.stream_specifier}', f'{self.value}k']
 
-    def __eq__(self, other):
-        if isinstance(other, Bitrate):
-            if self.value == other.value:
-                return True
-
+    def __lt__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value < other.value:
+            return True
         return False
 
-    def __ne__(self, other):
-        if isinstance(other, Bitrate):
-            if self.value == other.value:
-                return False
+    def __gt__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value > other.value:
+            return True
+        return False
 
-        return True
+    def __le__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value <= other.value:
+            return True
+        return False
+
+    def __ge__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.value >= other.value:
+            return True
+        return False
 
 
 OptionFactory.register_option(Bitrate)
@@ -197,20 +255,6 @@ class PixFmt(IStreamOption):
         super(PixFmt, self).parse(stream_type, stream_number)
         return [f'-pix_fmt:{self.stream_specifier}', str(self.value)]
 
-    def __eq__(self, other):
-        if isinstance(other, PixFmt):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, PixFmt):
-            if self.value == other.value:
-                return False
-
-        return True
-
 
 OptionFactory.register_option(PixFmt)
 
@@ -220,7 +264,7 @@ class Bsf(IStreamOption):
     Set bitstream filters for matching streams. bitstream_filters is a comma-separated list of bitstream filters."""
     name = 'bsf'
 
-    def __init__(self, stream_type: str, val: Union[list, str]):
+    def __init__(self, val: Union[list, str]):
         assert isinstance(val, (list, str))
         if isinstance(val, str):
             self.value = [val]
@@ -230,20 +274,6 @@ class Bsf(IStreamOption):
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Bsf, self).parse(stream_type, stream_number)
         return [f'-bsf:{self.stream_specifier}', ','.join(self.value)]
-
-    def __eq__(self, other):
-        if isinstance(other, Bsf):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Bsf):
-            if self.value == other.value:
-                return False
-
-        return True
 
 
 OptionFactory.register_option(Bsf)
@@ -255,9 +285,10 @@ class Disposition(IStreamOption):
     The following dispositions are recognized:
     default, dub, original, comment, lyrics, karaoke, forced, hearing_impaired, visual_impaired, clean_effects
     attached_pic, captions, descriptions, dependent, metadata"""
+    name = 'disposition'
 
     def __init__(self, val: dict):
-        self.value = []
+        self.value = {}
         for k in val:
             if k.lower() not in ['default', 'dub', 'original', 'comment', 'lyrics', 'karaoke', 'forced',
                                  'hearing_impaired', 'visual_impaired', 'clean_effects', 'attached_pic', 'captions',
@@ -265,12 +296,12 @@ class Disposition(IStreamOption):
                 continue
             else:
                 if val[k]:
-                    self.value.append(k)
+                    self.value.update({k: val[k]})
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         r = []
         super(Disposition, self).parse(stream_type, stream_number)
-        for k in self.value:
+        for k, v in self.value:
             r.extend([f'-disposition:{self.stream_specifier}', k])
         return r
 
@@ -292,96 +323,55 @@ class Disposition(IStreamOption):
 OptionFactory.register_option(Disposition)
 
 
-class Height(IStreamOption):
+class Height(IStreamValueOption):
+    name = 'height'
 
     def __init__(self, val):
+        if str(val).isnumeric():
+            val = int(val)
+        else:
+            raise TypeError('Value for height should be numeric')
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        pass
-
-    def __eq__(self, other):
-        if isinstance(other, Height):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Height):
-            if self.value == other.value:
-                return False
-
-        return True
+        return []
 
 
-class Width(IStreamOption):
+class Width(IStreamValueOption):
+    name = 'width'
 
     def __init__(self, val):
-        self.value = val
+        if not str(val).isnumeric():
+            raise TypeError('Value for width should be numeric')
+        self.value = int(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        pass
-
-    def __eq__(self, other):
-        if isinstance(other, Width):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Width):
-            if self.value == other.value:
-                return False
-
-        return True
+        return []
 
 
-class Level(IStreamOption):
+class Level(IStreamValueOption):
+    name = 'level'
 
     def __init__(self, val):
-        self.value = val
+        try:
+            self.value = float(val)
+        except:
+            raise TypeError('Value for level should be decimal')
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        pass
-
-    def __eq__(self, other):
-        if isinstance(other, Level):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Level):
-            if self.value == other.value:
-                return False
-
-        return True
+        super(Level, self).parse(stream_type, stream_number)
+        return [f'-level:{self.stream_specifier}', f'{self.value:.{1}}']
 
 
 class Profile(IStreamOption):
+    name = 'profile'
 
     def __init__(self, val):
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        pass
-
-    def __eq__(self, other):
-        if isinstance(other, Profile):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Profile):
-            if self.value == other.value:
-                return False
-
-        return True
+        super(Profile, self).parse(stream_type, stream_number)
+        return [f'-profile:{self.stream_specifier}', str(self.value)]
 
 
 class UnsupportedStreamType(Exception):
@@ -394,6 +384,9 @@ class UnsupportedOption(Exception):
 
 if __name__ == '__main__':
     import converter.streams as streams
+
+    toto = OptionFactory.get_option_by_type(Codec)
+    toto('ac3')
 
     of = OptionFactory()
     myoptr = of.get_option('bitrate')
