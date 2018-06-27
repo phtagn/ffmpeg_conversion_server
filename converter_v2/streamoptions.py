@@ -374,6 +374,65 @@ class Profile(IStreamOption):
         return [f'-profile:{self.stream_specifier}', str(self.value)]
 
 
+class FFFilter(IStreamOption):
+
+    def __init__(self, *filters):
+        self._filters = []
+        self.add_filter()
+
+    def add_filter(self, *filters):
+        for f in filters:
+            if isinstance(f, Filters):
+                self._filters.append(f)
+
+    @property
+    def filters(self):
+        return self._filters
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+        super(FFFilter, self).parse(stream_type, stream_number)
+        values = [f.filter for f in self.filters]
+        print(';'.join(values))
+        return [F'-filter:{self.stream_specifier}', ';'.join(values)]
+
+
+class Filters:
+    pass
+
+
+class Scale(Filters):
+    name = 'scale'
+
+    def __init__(self, val: tuple):
+        """
+        Val is a tuple of height and width, see https://ffmpeg.org/ffmpeg-filters.html#scale-1
+        :param val: tuple (width, height)
+        :type val: tuple(int, int)
+        """
+        if len(val) != 2:
+            raise Exception('Scale filter expects a tuple of width and height')
+        self.w = val[0]
+        self.h = val[1]
+
+    @property
+    def filter(self):
+        return f'scale=w={self.w}:h={self.h}'
+
+class Deblock(Filters):
+
+    def __init__(self, **kwargs):
+        k = list(zip(kwargs.keys(), kwargs.values()))
+        a= []
+        for t in k:
+            a.append('='.join([str(t[0]), str(t[1])]))
+
+
+        self.value = ':'.join(a)
+
+    @property
+    def filter(self):
+        return f'deblock={self.value}'
+
 class UnsupportedStreamType(Exception):
     pass
 
@@ -384,6 +443,13 @@ class UnsupportedOption(Exception):
 
 if __name__ == '__main__':
     import converter.streams as streams
+
+    filters = FFFilter()
+    f = Scale((720, 400))
+    d = Deblock(filter='weak', block=4, alpha=0.12,beta=0.07)
+    filters.add_filter(d)
+    filters.add_filter(f)
+    print(filters.parse('v', 0))
 
     toto = OptionFactory.get_option_by_type(Codec)
     toto('ac3')

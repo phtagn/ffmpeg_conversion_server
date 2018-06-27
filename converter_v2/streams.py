@@ -464,10 +464,9 @@ class OptionBuilder(object):
             else:
                 encoder = streamformat.get_encoder(enc, *target_stream.options.values(), Map((0, source_idx)))
 
-            try:
-                encoder = next([enco for enco in encoders if type(enco) == type(encoder)])
-            except StopIteration:
-                pass
+            for enco in encoders:
+                if type(encoder) == type(enco):
+                    encoder = enco
 
             print(encoder.parse(target_idx))
 
@@ -475,7 +474,7 @@ class OptionBuilder(object):
 if __name__ == '__main__':
     encoder = CodecFactory.get_codec_by_name('vorbis')
 
-    ctn = ContainerFactory.container_from_ffprobe("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv",
+    ctn = ContainerFactory.container_from_ffprobe("/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv",
                                                   '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 
     vst = StreamTemplateFactory.get_stream_template(ctn.video_streams[0], Codec('h264'), Codec('hevc'), Height('600'),
@@ -490,9 +489,10 @@ if __name__ == '__main__':
     tctn.add_stream_pairs(((0, ctn.get_stream(0)), vs))
     toto = AudioStream(Bsf('p'))
 
+
     tctn.remove_matching_stream_pairs(toto)
 
     ob = OptionBuilder()
-    ob.build_options(tctn, {'aac': 'faac'})
+    ob.build_options(tctn, {'aac': 'faac'}, enc)
 
     print('yeah')
