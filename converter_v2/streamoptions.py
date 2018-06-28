@@ -374,7 +374,7 @@ class Profile(IStreamOption):
         return [f'-profile:{self.stream_specifier}', str(self.value)]
 
 
-class FFFilter(IStreamOption):
+class Filter(IStreamOption):
 
     def __init__(self, *filters):
         self._filters = []
@@ -390,7 +390,7 @@ class FFFilter(IStreamOption):
         return self._filters
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
-        super(FFFilter, self).parse(stream_type, stream_number)
+        super(Filter, self).parse(stream_type, stream_number)
         values = [f.filter for f in self.filters]
         print(';'.join(values))
         return [F'-filter:{self.stream_specifier}', ';'.join(values)]
@@ -418,20 +418,21 @@ class Scale(Filters):
     def filter(self):
         return f'scale=w={self.w}:h={self.h}'
 
+
 class Deblock(Filters):
 
     def __init__(self, **kwargs):
         k = list(zip(kwargs.keys(), kwargs.values()))
-        a= []
+        a = []
         for t in k:
             a.append('='.join([str(t[0]), str(t[1])]))
-
 
         self.value = ':'.join(a)
 
     @property
     def filter(self):
         return f'deblock={self.value}'
+
 
 class UnsupportedStreamType(Exception):
     pass
@@ -444,9 +445,9 @@ class UnsupportedOption(Exception):
 if __name__ == '__main__':
     import converter.streams as streams
 
-    filters = FFFilter()
+    filters = Filter()
     f = Scale((720, 400))
-    d = Deblock(filter='weak', block=4, alpha=0.12,beta=0.07)
+    d = Deblock(filter='weak', block=4, alpha=0.12, beta=0.07)
     filters.add_filter(d)
     filters.add_filter(f)
     print(filters.parse('v', 0))

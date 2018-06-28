@@ -33,6 +33,17 @@ class Stream(ABC):
     def options(self):
         return self._options
 
+    def replace_option(self, *options):
+        for opt in options:
+            try:
+                if opt.__name__ in self.options:
+                    del self.options[opt.__name__]
+                elif opt.__class__.__name__ in self.options:
+                    del self.options[opt.__class__.__name__]
+                self.add_option(opt)
+            except KeyError:
+                pass
+
     def get_option_by_name(self, name):
         return self.options.get(name, None)
 
@@ -150,7 +161,13 @@ class Container(object):
 
     def add_stream(self, stream: Union[AudioStream, VideoStream, SubtitleStream],
                    stream_number: Optional[int] = 0) -> int:
-
+        """
+        Add a stream to the list of streams in the Container. Streams can be with a specified stream
+        number, or the method will insert at the next available stream number.
+        :param stream: A concrete instance of Stream (VideoStream, AudioStream or SubtitleStream)
+        :param stream_number: optional, insert the stream with the specified stream number
+        :return: the stream number where the stream was inserted
+        """
         assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
         if stream_number:
             sn = stream_number
@@ -179,13 +196,18 @@ class Container(object):
     def streams(self):
         return self._streams
 
-    def get_stream(self, index):
+    def get_stream(self, index) -> Optional[Union[VideoStream, AudioStream, SubtitleCopy]]:
+        """
+        Return the stream at the index, or None of the stream does not exist.
+        :param index: int, the index of the stream
+        :return: Stream
+        """
         if index in self._streams:
             return self._streams.get(index, None)
 
     def remove_matching_streams(self, *streams: Union[VideoStream, AudioStream, SubtitleStream]):
         """
-        Removes stream that matches any of the streams specified in *streams
+        Removes stream that matches any of the streams specified in *streams. There is no renumbering.
         :param streams:  AudioStream, VideoStream or SubtitleStream
         :return: None
         """
@@ -198,6 +220,11 @@ class Container(object):
         self._streams = newstreams
 
     def keep_matching_streams(self, *streams: Union[VideoStream, AudioStream, SubtitleStream]):
+        """
+        Removes all streams that do not match the condition. There is no renumbering.
+        :param streams: VideoStream, AudioStream or SubtitleStream
+        :return: None
+        """
         newstreams = {}
         for k, v in self._streams.items():
             for sfilter in streams:
@@ -411,8 +438,26 @@ class LinkedContainer(object):
         self._stream_pairs.append((pair[0], (self.target_stream_count, pair[1])))
         self.target_stream_count += 1
 
+    @property
+    def video_stream_pairs(self):
+        return [pair for pair in self.stream_pairs if isinstance(pair[0][1], VideoStream)]
+
+    @property
+    def audio_stream_pairs(self):
+        return [pair for pair in self.stream_pairs if isinstance(pair[0][1], AudioStream)]
+
+    @property
+    def subtitle_stream_pairs(self):
+        return [pair for pair in self.stream_pairs if isinstance(pair[0][1], SubtitleStream)]
+
     def fix_disposition(self):
-        pass
+        disp = None
+        for typ in [self.video_stream_pairs, self.audio_stream_pairs, self.subtitle_stream_pairs]:
+            for s in typ:
+                if len(typ) == 1:
+                    disp = s.replace_option(Disposition({'default': 1}))
+                if disp:
+                    if 'default' in disp:
 
     def remove_matching_stream_pairs(self, *streams: Union[AudioStream, VideoStream, SubtitleStream]):
         """
@@ -474,7 +519,7 @@ class OptionBuilder(object):
 if __name__ == '__main__':
     encoder = CodecFactory.get_codec_by_name('vorbis')
 
-    ctn = ContainerFactory.container_from_ffprobe("/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv",
+    ctn = ContainerFactory.container_from_ffprobe("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv",
                                                   '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 
     vst = StreamTemplateFactory.get_stream_template(ctn.video_streams[0], Codec('h264'), Codec('hevc'), Height('600'),
@@ -487,8 +532,9 @@ if __name__ == '__main__':
     vs = VideoStream(Codec('Vorbis'))
 
     tctn.add_stream_pairs(((0, ctn.get_stream(0)), vs))
-    toto = AudioStream(Bsf('p'))
+    me = tctn.video_stream_pairs
 
+    toto = AudioStream(Bsf('p'))
 
     tctn.remove_matching_stream_pairs(toto)
 
