@@ -33,25 +33,27 @@ class Stream(ABC):
     def options(self):
         return self._options
 
-    def replace_option(self, *options):
+    def replace_options(self, *options):
         for opt in options:
-            try:
-                if opt.__name__ in self.options:
-                    del self.options[opt.__name__]
-                elif opt.__class__.__name__ in self.options:
-                    del self.options[opt.__class__.__name__]
+            assert isinstance(opt, IStreamOption)
+            if opt.__class__.__name__ in self.options:
+                del self.options[opt.__class__.__name__]
                 self.add_option(opt)
-            except KeyError:
-                pass
 
     def get_option_by_name(self, name):
         return self.options.get(name, None)
 
     def get_option_by_type(self, option):
+        #assert isinstance(option, IStreamOption)
+        val = None
         try:
             val = self.options[option.__name__]
         except KeyError:
+            pass
+        try:
             val = self.options[option.__class__.__name__]
+        except KeyError:
+            pass
 
         return val
 
@@ -451,13 +453,17 @@ class LinkedContainer(object):
         return [pair for pair in self.stream_pairs if isinstance(pair[0][1], SubtitleStream)]
 
     def fix_disposition(self):
-        disp = None
-        for typ in [self.video_stream_pairs, self.audio_stream_pairs, self.subtitle_stream_pairs]:
-            for s in typ:
-                if len(typ) == 1:
-                    disp = s.replace_option(Disposition({'default': 1}))
-                if disp:
-                    if 'default' in disp:
+        for stream_type in [self.video_stream_pairs, self.audio_stream_pairs, self.subtitle_stream_pairs]:
+            k = 0
+            for (_, _,), (_, stream) in stream_type:
+                disp_option = stream.get_option_by_type(Disposition)
+                if disp_option:
+                    thedisposition = disp_option.value
+                    thedisposition['default'] = 1 if k == 0 else 0
+                    stream.replace_options(Disposition(thedisposition))
+                else:
+                    stream.add_option(Disposition({'default': 1 if k == 0 else 0}))
+                k += 1
 
     def remove_matching_stream_pairs(self, *streams: Union[AudioStream, VideoStream, SubtitleStream]):
         """
@@ -518,8 +524,9 @@ class OptionBuilder(object):
 
 if __name__ == '__main__':
     encoder = CodecFactory.get_codec_by_name('vorbis')
-
-    ctn = ContainerFactory.container_from_ffprobe("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv",
+    laptop = '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv'
+    desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
+    ctn = ContainerFactory.container_from_ffprobe(laptop,
                                                   '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 
     vst = StreamTemplateFactory.get_stream_template(ctn.video_streams[0], Codec('h264'), Codec('hevc'), Height('600'),
@@ -532,13 +539,13 @@ if __name__ == '__main__':
     vs = VideoStream(Codec('Vorbis'))
 
     tctn.add_stream_pairs(((0, ctn.get_stream(0)), vs))
-    me = tctn.video_stream_pairs
+    tctn.fix_disposition()
 
     toto = AudioStream(Bsf('p'))
 
     tctn.remove_matching_stream_pairs(toto)
 
     ob = OptionBuilder()
-    ob.build_options(tctn, {'aac': 'faac'}, enc)
+    ob.build_options(tctn, {'aac': 'faac'})
 
     print('yeah')

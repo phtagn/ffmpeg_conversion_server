@@ -10,6 +10,8 @@ class IStreamOption(metaclass=ABCMeta):
     name = ''
     ffprobe_name = ''
     """Interface for options that apply to streams. The constructor builds the stream specifier"""
+    def __init__(self):
+        pass
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -39,6 +41,14 @@ class IStreamOption(metaclass=ABCMeta):
 
     def __copy__(self):
         return type(self)(self.value)
+
+
+class OptionClassFactory(object):
+
+    @staticmethod
+    def get_istreamoption(name, argnames):
+        option = type(name, (IStreamOption,), {'__init__': IStreamOption.__init__})
+        return option
 
 
 class IStreamValueOption(IStreamOption):
@@ -295,8 +305,7 @@ class Disposition(IStreamOption):
                                  'descriptions', 'dependent', 'metadata']:
                 continue
             else:
-                if val[k]:
-                    self.value.update({k: val[k]})
+                self.value.update({k: val[k]})
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         r = []
@@ -443,6 +452,8 @@ class UnsupportedOption(Exception):
 
 
 if __name__ == '__main__':
+    myopt = OptionClassFactory.get_istreamoption('Disposition', 'totot')
+
     import converter.streams as streams
 
     filters = Filter()
