@@ -1,11 +1,10 @@
 from typing import Optional, List, Tuple
+
 from converter_v2.encoders import *
 from converter_v2.streamoptions import *
 from converter_v2.streamformats import StreamFormatFactory
 import logging
 import copy
-from abc import ABC
-from inspect import isclass
 
 logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ class Stream(ABC):
         return self.options.get(name, None)
 
     def get_option_by_type(self, option):
-        #assert isinstance(option, IStreamOption)
+        # assert isinstance(option, IStreamOption)
         val = None
         try:
             val = self.options[option.__name__]
@@ -114,10 +113,12 @@ class StreamFactory(object):
     @classmethod
     def get_stream_by_type(cls, stream: Stream) -> Stream:
         assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
-        this_module = __import__(__name__)
-        stream_class = getattr(this_module, str(stream.__class__.__name__))
-
-        return stream_class([])
+        if isinstance(stream, VideoStream):
+            return VideoStream()
+        elif isinstance(stream, AudioStream):
+            return AudioStream()
+        elif isinstance(stream, SubtitleStream):
+            return SubtitleStream()
 
 
 class VideoStream(Stream):
@@ -302,6 +303,57 @@ class SubtitleStreamTemplate(SubtitleStream):
                     self._options[opt.__class__.__name__].append(opt)
 
 
+class StreamTemplateFactory(object):
+
+    @staticmethod
+    def get_stream_template(stream: Stream, *options) -> Union[VideoStreamTemplate,
+                                                               AudioStreamTemplate,
+                                                               SubtitleStreamTemplate]:
+        if isinstance(stream, VideoStream):
+            return VideoStreamTemplate(*options)
+        elif isinstance(stream, AudioStream):
+            return AudioStreamTemplate(*options)
+        elif isinstance(stream, SubtitleStreamTemplate):
+            return SubtitleStreamTemplate(*options)
+
+
+class OptionBuilder(object):
+
+    def __init__(self):
+        pass
+
+    def build_options(self, lctn, preferred_codec: dict, *encoders):
+
+        for pair in lctn.stream_pairs:
+            (source_idx, source_stream), (target_idx, target_stream) = pair
+            log.debug(f'\nSource:, {source_stream}\nTarget:, {target_stream}')
+
+            fmt = target_stream.get_option_by_type(Codec).value
+
+            streamformat = StreamFormatFactory.get_format(fmt)
+
+            enc = None
+
+            if fmt in preferred_codec:
+                enc = preferred_codec[fmt]
+
+            for k, option in source_stream.options.items():
+                if k in target_stream.options:
+                    if target_stream.options[k] == option:
+                        del target_stream.options[k]
+
+            if source_stream == target_stream:
+                encoder = streamformat.get_encoder('copy', *target_stream.options.values(), Map((0, source_idx)))
+            else:
+                encoder = streamformat.get_encoder(enc, *target_stream.options.values(), Map((0, source_idx)))
+
+            for enco in encoders:
+                if type(encoder) == type(enco):
+                    encoder.add_option(enco.options)
+
+            print(encoder.parse(target_idx))
+
+
 class ContainerFactory(object):
 
     @staticmethod
@@ -402,20 +454,6 @@ class ContainerFactory(object):
         return ctn
 
 
-class StreamTemplateFactory(object):
-
-    @staticmethod
-    def get_stream_template(stream: Stream, *options) -> Union[VideoStreamTemplate,
-                                                               AudioStreamTemplate,
-                                                               SubtitleStreamTemplate]:
-        if isinstance(stream, VideoStream):
-            return VideoStreamTemplate(*options)
-        elif isinstance(stream, AudioStream):
-            return AudioStreamTemplate(*options)
-        elif isinstance(stream, SubtitleStreamTemplate):
-            return SubtitleStreamTemplate(*options)
-
-
 class LinkedContainer(object):
     """
     Linked Container enable to link source streams and target streams, in pairs, so that they
@@ -485,48 +523,11 @@ class LinkedContainer(object):
         return p
 
 
-class OptionBuilder(object):
-
-    def __init__(self):
-        pass
-
-    def build_options(self, lctn: LinkedContainer, preferred_codec: dict, *encoders):
-
-        for pair in lctn.stream_pairs:
-            (source_idx, source_stream), (target_idx, target_stream) = pair
-            log.debug(f'\nSource:, {source_stream}\nTarget:, {target_stream}')
-
-            fmt = target_stream.get_option_by_type(Codec).value
-
-            streamformat = StreamFormatFactory.get_format(fmt)
-
-            enc = None
-
-            if fmt in preferred_codec:
-                enc = preferred_codec[fmt]
-
-            for k, option in source_stream.options.items():
-                if k in target_stream.options:
-                    if target_stream.options[k] == option:
-                        del target_stream.options[k]
-
-            if source_stream == target_stream:
-                encoder = streamformat.get_encoder('copy', *target_stream.options.values(), Map((0, source_idx)))
-            else:
-                encoder = streamformat.get_encoder(enc, *target_stream.options.values(), Map((0, source_idx)))
-
-            for enco in encoders:
-                if type(encoder) == type(enco):
-                    encoder = enco
-
-            print(encoder.parse(target_idx))
-
-
 if __name__ == '__main__':
     encoder = CodecFactory.get_codec_by_name('vorbis')
     laptop = '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv'
     desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
-    ctn = ContainerFactory.container_from_ffprobe(laptop,
+    ctn = ContainerFactory.container_from_ffprobe(desktop,
                                                   '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
 
     vst = StreamTemplateFactory.get_stream_template(ctn.video_streams[0], Codec('h264'), Codec('hevc'), Height('600'),

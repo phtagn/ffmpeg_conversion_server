@@ -10,8 +10,6 @@ class IStreamOption(metaclass=ABCMeta):
     name = ''
     ffprobe_name = ''
     """Interface for options that apply to streams. The constructor builds the stream specifier"""
-    def __init__(self):
-        pass
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -86,6 +84,10 @@ class IStreamValueOption(IStreamOption):
         return False
 
 
+class EncoderOption(IStreamOption):
+    pass
+
+
 class OptionFactory(object):
     options = {}
 
@@ -135,6 +137,38 @@ class Codec(IStreamOption):
 
 
 OptionFactory.register_option(Codec)
+
+
+class Fps(IStreamValueOption):
+
+    def __init__(self, val: int):
+        if val < 1 or val > 120:
+            raise ValueError('Value should be betwwen 1 and 120')
+        else:
+            self.value = val
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+        super(Fps, self).parse(stream_type, stream_number)
+        return [f'-r:{self.stream_specifier}', str(self.value)]
+
+
+OptionFactory.register_option(Fps)
+
+
+class Crf(EncoderOption):
+
+    def __init__(self, val: int):
+        if val < 0 or val > 51:
+            raise ValueError('Value should be between 0 and 51')
+        else:
+            self.value = val
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+        super(Crf, self).parse(stream_type, stream_number)
+        return [f'-crf:{self.stream_specifier}', str(self.value)]
+
+
+OptionFactory.register_option(EncoderOption)
 
 
 class Map(IStreamValueOption):
@@ -269,7 +303,7 @@ class PixFmt(IStreamOption):
 OptionFactory.register_option(PixFmt)
 
 
-class Bsf(IStreamOption):
+class Bsf(EncoderOption):
     """Bitstream filter option
     Set bitstream filters for matching streams. bitstream_filters is a comma-separated list of bitstream filters."""
     name = 'bsf'
@@ -310,8 +344,13 @@ class Disposition(IStreamOption):
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         r = []
         super(Disposition, self).parse(stream_type, stream_number)
-        for k, v in self.value:
-            r.extend([f'-disposition:{self.stream_specifier}', k])
+        for k, v in self.value.items():
+            if v == 0:
+                if k == 'default':
+                    r.extend([f'-disposition:{self.stream_specifier}', 0])
+            if v == 1:
+                r.extend([f'-disposition:{self.stream_specifier}', k])
+
         return r
 
     def __eq__(self, other):

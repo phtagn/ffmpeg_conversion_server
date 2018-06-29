@@ -15,21 +15,19 @@ class _FFMpegCodec(ABC):
     supported_options = [Map]
     codec_type = ''
 
-    def __init__(self, *options: IStreamOption):
+    def __init__(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
         self.options = []
         self.add_option(*options)
 
-    def add_option(self, *options: IStreamOption):
+    def add_option(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
+
         for option in options:
-            assert isinstance(option, IStreamOption)
+            assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
             if type(option) in self.__class__.supported_options:
-                    self.options.append(option)
+                self.options.append(option)
             else:
                 pass
                 # log.error('Option %s is not supported', option.__name__)
-
-    def get_encoder(self):
-        pass
 
     def parse(self, stream_number: int):
         if self.codec_type == 'video':
@@ -49,6 +47,7 @@ class _FFMpegCodec(ABC):
 
 class _VideoCodec(_FFMpegCodec):
     supported_options = _FFMpegCodec.supported_options.copy()
+    supported_options.extend([Disposition, Bsf])
     codec_type = 'video'
 
     def __init__(self, *options):
@@ -57,7 +56,7 @@ class _VideoCodec(_FFMpegCodec):
 
 class _AudioCodec(_FFMpegCodec):
     supported_options = _FFMpegCodec.supported_options.copy()
-    supported_options.extend([Channels, Language, Disposition])
+    supported_options.extend([Channels, Language, Disposition, Bsf])
     codec_type = 'audio'
 
     def __init__(self, *options):
@@ -80,7 +79,6 @@ class _Copy(_FFMpegCodec):
     codec_name = 'copy'
     ffmpeg_codec_name = 'copy'
 
-
     def __init__(self, *options):
         super(_Copy, self).__init__(*options)
 
@@ -89,13 +87,16 @@ class VideoCopy(_Copy):
     codec_type = 'video'
     supported_options = _VideoCodec.supported_options
 
+
 class AudioCopy(_Copy):
     codec_type = 'audio'
     supported_options = _AudioCodec.supported_options
 
+
 class SubtitleCopy(_Copy):
     codec_type = 'subtitle'
     supported_options = _SubtitleCodec.supported_options
+
 
 class H264(_VideoCodec):
     """
@@ -103,21 +104,17 @@ class H264(_VideoCodec):
     """
     codec_name = 'h264'
     ffmpeg_codec_name = 'libx264'
-    supported_options = _VideoCodec.supported_options[:]
-    supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition])
+    supported_options = _VideoCodec.supported_options
+    supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition, Crf])
 
 
-class Vorbis(_AudioCodec):
+class Vorbis(_VideoCodec):
     """
     Vorbis audio codec.
     """
     codec_name = 'vorbis'
     ffmpeg_codec_name = 'libvorbis'
-    supported_options = _AudioCodec.supported_options
-    supported_options.append(Language)
-
-    def __init__(self, *options):
-        super(Vorbis, self).__init__(*options)
+    supported_options = _VideoCodec.supported_options
 
 
 class Aac(_AudioCodec):
@@ -127,9 +124,6 @@ class Aac(_AudioCodec):
     codec_name = 'aac'
     ffmpeg_codec_name = 'aac'
     supported_options = _AudioCodec.supported_options.copy()
-    def __init__(self, *options):
-        super(Aac, self).__init__(*options)
-
 
 class FdkAac(_AudioCodec):
     """
@@ -325,9 +319,6 @@ class WebVTT(_SubtitleCodec):
     codec_name = 'webvtt'
     ffmpeg_codec_name = 'webvtt'
 
-    def __init__(self, opts) -> None:
-        super(WebVTTCodec, self).__init__(opts)
-
 
 class SSA(_SubtitleCodec):
     """
@@ -335,9 +326,6 @@ class SSA(_SubtitleCodec):
     """
     codec_name = 'ass'
     ffmpeg_codec_name = 'ass'
-
-    def __init__(self, opts) -> None:
-        super(SSA, self).__init__(opts)
 
 
 class SubRip(_SubtitleCodec):
@@ -347,9 +335,6 @@ class SubRip(_SubtitleCodec):
     codec_name = 'subrip'
     ffmpeg_codec_name = 'subrip'
 
-    def __init__(self, opts) -> None:
-        super(SubRip, self).__init__(opts)
-
 
 class DVBSub(_SubtitleCodec):
     """
@@ -358,9 +343,6 @@ class DVBSub(_SubtitleCodec):
     codec_name = 'dvbsub'
     ffmpeg_codec_name = 'dvbsub'
 
-    def __init__(self, opts) -> None:
-        super(DVBSub, self).__init__(opts)
-
 
 class DVDSub(_SubtitleCodec):
     """
@@ -368,9 +350,6 @@ class DVDSub(_SubtitleCodec):
     """
     codec_name = 'dvdsub'
     ffmpeg_codec_name = 'dvdsub'
-
-    def __init__(self, opts) -> None:
-        super(DVDSub, self).__init__(opts)
 
 
 class CodecFactory(object):
