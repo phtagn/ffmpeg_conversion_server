@@ -85,17 +85,17 @@ class _Copy(_FFMpegCodec):
 
 class VideoCopy(_Copy):
     codec_type = 'video'
-    supported_options = _VideoCodec.supported_options
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class AudioCopy(_Copy):
     codec_type = 'audio'
-    supported_options = _AudioCodec.supported_options
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class SubtitleCopy(_Copy):
     codec_type = 'subtitle'
-    supported_options = _SubtitleCodec.supported_options
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class H264(_VideoCodec):
@@ -104,7 +104,7 @@ class H264(_VideoCodec):
     """
     codec_name = 'h264'
     ffmpeg_codec_name = 'libx264'
-    supported_options = _VideoCodec.supported_options
+    supported_options = _VideoCodec.supported_options.copy()
     supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition, Crf])
 
 

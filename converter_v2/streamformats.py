@@ -85,19 +85,20 @@ class H264Stream(VideoStream):
                 'h264vaapi': H264VAAPI,
                 'nvenc_h264': NVEncH264
                 }
-    supported_options = VideoStream.supported_options
+    supported_options = VideoStream.supported_options.copy()
     supported_options.extend([Profile, Level])
     default_encoder = 'h264'
     name = 'h264'
 
 
-class H265Stream(VideoStream):
+class HevcStream(VideoStream):
     encoders = {'copy': VideoCopy,
                 'h265': H265,
                 'hevcsqv': HEVCQSV,
                 'nvenc_h265': NVEncH265
                 }
-
+    supported_options = VideoStream.supported_options.copy()
+    supported_options.extend([Profile, Level])
     default_encoder = 'h265'
     name = 'hevc'
 
@@ -215,8 +216,8 @@ class StreamFormatFactory(object):
         'theora': TheoraStream,
         'h264': H264Stream,
         'x264': H264Stream,  # Alias
-        'h265': H265Stream,
-        'hevc': H265Stream,  # Alias
+        'h265': HevcStream,
+        'hevc': HevcStream,  # Alias
         'divx': DivxStream,
         'vp8': Vp8Stream,
         'h263': H263Stream,

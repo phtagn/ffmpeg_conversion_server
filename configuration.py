@@ -3,7 +3,7 @@ from configobj import flatten_errors
 from typing import Union
 import validate
 import logging
-from defaultconfig import configspec
+from configuration.defaultconfig import configspec
 import os
 import languagecode
 
@@ -196,9 +196,9 @@ class ConfigException(Exception):
 
 
 if __name__ == '__main__':
-    toto = {'TrackFormats': {'theora': {'max_bitrate': '1080'}}}
+#    toto = {'TrackFormats': {'theora': {'max_bitrate': '1080'}}}
     cm = cfgmgr()
-#    cm.savedefaults()
-    cm.load('defaults.ini', overrides=toto)
-    tf = cm.extract_stream_config('mp4')
-    print(tf)
+    cm.savedefaults()
+#    cm.load('defaults.ini', overrides=toto)
+#    tf = cm.extract_stream_config('mp4')
+#    print(tf)
