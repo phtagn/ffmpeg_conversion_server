@@ -7,9 +7,15 @@ import converter_v2.ffmpeg
 
 import os
 import logging
-
-logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
-log = logging.getLogger(__name__)
+import sys
+#logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
 """Processes a video file in steps:
 1) Analyse video file
 2) Assess appropriate streams from options
@@ -91,6 +97,10 @@ class Processor(object):
 
         templates = self._build_templates()
         linked_container = ContainerFactory.container_from_templates(self.source_container, self.target, templates)
+        print(f'tototoot: {linked_container}')
+        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+            log.debug('Analysis result:\n %s ', str(linked_container))
+
         return linked_container
 
     def convert(self, outputfile):
@@ -109,13 +119,13 @@ if __name__ == '__main__':
     desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, desktop, 'mp4')
+    p = Processor(cfgmgr.cfg, laptop, 'mp4')
     tctn = p.process_container()
 
-    for idx in range(len(tctn.stream_pairs)):
-        print(f'{idx}:')
-        t = tctn.print_compare(idx)
-        print('\n'.join(t))
-        print('\n')
+#    for idx in range(len(tctn.stream_pairs)):
+#        print(f'{idx}:')
+#        t = tctn.print_compare(idx)
+#        print('\n'.join(t))
+#        print('\n')
 
 #    p.convert('/Users/Jon/Downloads/test.mp4')

@@ -11,8 +11,8 @@ from typing import Union
 from converter_v2.parsers import FFprobeParser
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
 
 
@@ -147,8 +147,8 @@ class FFMpeg(object):
                 clean_cmds.append(str(cmd))
             cmds = clean_cmds
         except:
-            logger.exception("There was an error making all command line parameters a string")
-        logger.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
+            log.exception("There was an error making all command line parameters a string")
+        log.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
         return Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                      close_fds=(os.name != 'nt'), startupinfo=None)
 

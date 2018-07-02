@@ -1,5 +1,7 @@
 from converter_v2.encoders import *
+import logging
 
+log = logging.getLogger(__name__)
 
 class BaseStreamFormat(object):
     encoders = {}

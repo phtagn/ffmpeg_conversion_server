@@ -2,7 +2,8 @@ from typing import Union
 
 from converter_v2.streamoptions import Codec
 from converter_v2.streams import VideoStream, AudioStream, SubtitleStream, Stream
-
+import logging
+log = logging.getLogger(__name__)
 
 class Template(Stream):
     """Class for stream templates. The only difference between templates and streams is that

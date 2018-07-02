@@ -2,8 +2,8 @@ import json
 import locale
 from converter_v2.streamoptions import *
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger(__name__)
+
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
 
 

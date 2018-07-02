@@ -7,7 +7,6 @@ from configuration_mod.defaultconfig import configspec
 import os
 import languagecode
 
-logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 

@@ -19,10 +19,18 @@ class Stream(ABC):
         self.add_option(*options)
 
     def add_option(self, *options):
+        """Add options to the options pool. Reject options if they are not supported or if the value is None.
+        """
         for opt in options:
-            if type(opt) in self.supported_options:
+            if type(opt) in self.supported_options and opt.value is not None:
                 if opt.__class__.__name__ not in self._options:
                     self._options.update({opt.__class__.__name__: opt})
+                    log.debug('Option %s added to %s', str(opt), opt.__class__.__name__)
+                else:
+                    log.warning('Option %s already present, not adding', opt.__class__.__name__)
+            else:
+                log.warning('Option %s was rejected because unsupported by %s or None', str(opt),
+                            self.__class__.__name__)
 
     @property
     def options(self):
@@ -38,7 +46,7 @@ class Stream(ABC):
     def get_option_by_name(self, name):
         return self.options.get(name, None)
 
-    def get_option_by_type(self, option):
+    def get_option_by_type(self, option) -> Union[IStreamOption, None]:
         # assert isinstance(option, IStreamOption)
         val = None
         try:
@@ -120,9 +128,10 @@ class StreamFactory(object):
 class VideoStream(Stream):
     supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile]
 
+
 #    def __init__(self, *options):
 #        super(VideoStream, self).__init__(*options)
-        #self.type = 'video'
+# self.type = 'video'
 
 #    def __copy__(self):
 #        super(VideoStream, self).__copy__()
@@ -131,9 +140,10 @@ class VideoStream(Stream):
 class AudioStream(Stream):
     supported_options = [Codec, Channels, Language, Disposition, Bitrate]
 
+
 #    def __init__(self, *options):
 #        super(AudioStream, self).__init__(*options)
-        #self.type = 'audio'
+# self.type = 'audio'
 
 #    def __copy__(self):
 #        super(AudioStream, self).__copy__()
@@ -142,9 +152,10 @@ class AudioStream(Stream):
 class SubtitleStream(Stream):
     supported_options = [Codec, Language, Disposition]
 
+
 #    def __init__(self, *options):
 #        super(SubtitleStream, self).__init__(*options)
-        #self.type = 'subtitle'
+# self.type = 'subtitle'
 
 
 class OptionBuilder(object):

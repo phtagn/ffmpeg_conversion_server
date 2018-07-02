@@ -277,6 +277,23 @@ class LinkedContainer(object):
 
         return cmp
 
+    def __str__(self):
+
+        from io import StringIO
+        s = StringIO()
+
+        for pair in self.stream_pairs:
+            (source_index, source_stream), (target_index, target_stream) = pair
+            s.write(f'\nSource stream {source_index} -> Target Stream {target_index}\n')
+            for opt_name, opt in source_stream.options.items():
+                if opt_name in target_stream.options:
+                    s.write(f'{opt_name}: {opt.value} -> {target_stream.options[opt_name].value}\n')
+                else:
+                    s.write(f'{opt_name}: {opt.value} -> =\n')
+            s.write('-'*10)
+
+        return s.getvalue()
+
     def remove_matching_stream_pairs(self, *streams: Union[AudioStream, VideoStream, SubtitleStream]):
         """
         Removes stream pairs whose target_stream matches any of the streams specified in *streams

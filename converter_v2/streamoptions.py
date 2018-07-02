@@ -6,10 +6,14 @@ from typing import Union
 log = logging.getLogger(__name__)
 
 
+
 class IStreamOption(metaclass=ABCMeta):
     name = ''
     ffprobe_name = ''
     """Interface for options that apply to streams. The constructor builds the stream specifier"""
+
+    def __init__(self):
+        self.value = None
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -47,6 +51,9 @@ class IStreamOption(metaclass=ABCMeta):
     def __copy__(self):
         return type(self)(self.value)
 
+    def __str__(self):
+        return f'{self.__class__.__name__}: {self.value}'
+
 
 class OptionClassFactory(object):
 
@@ -59,7 +66,7 @@ class OptionClassFactory(object):
 class IStreamValueOption(IStreamOption):
 
     @abstractmethod
-    def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
         super(IStreamValueOption, self).parse(stream_type, stream_number)
 
     def __lt__(self, other):
@@ -140,8 +147,8 @@ class Codec(IStreamOption):
     ffprobe_name = 'codec_name'
 
     def __init__(self, val: str):
+        super(Codec, self).__init__()
         """
-
         :param val: name of the codec
         """
         self.value = val
@@ -157,9 +164,8 @@ OptionFactory.register_option(Codec)
 class Fps(IStreamValueOption):
 
     def __init__(self, val: int):
-        if val < 1 or val > 120:
-            raise ValueError('Value should be betwwen 1 and 120')
-        else:
+        super(Fps, self).__init__()
+        if val > 1 or val < 120:
             self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
@@ -173,9 +179,8 @@ OptionFactory.register_option(Fps)
 class Crf(EncoderOption):
 
     def __init__(self, val: int):
-        if val < 0 or val > 51:
-            raise ValueError('Value should be between 0 and 51')
-        else:
+        super(Crf, self).__init__()
+        if 51 > val > 0:
             self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
@@ -189,6 +194,7 @@ OptionFactory.register_option(EncoderOption)
 class Map(IStreamValueOption):
 
     def __init__(self, val: tuple):
+        super(Map, self).__init__()
         if len(val) > 2:
             raise ValueError('Tuple can only contain 2 ints')
         if not isinstance(val[0], int) or not isinstance(val[1], int):
@@ -206,21 +212,12 @@ class Channels(IStreamValueOption):
     ffprobe_name = 'channels'
 
     def __init__(self, val: int):
+        super(Channels, self).__init__()
         """
 
         :param val: number of audio channels, from 1 to 12
         """
-        if str(val).isnumeric():
-            val = int(val)
-        else:
-            raise TypeError('Value for height should be numeric')
-        self.value = val
-
-        if val > 12:
-            self.value = 12
-        elif val < 1:
-            self.value = 1
-        else:
+        if str(val).isnumeric() and 13 > int(val) > 0:
             self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -238,6 +235,7 @@ class Language(IStreamOption):
     ffprobe_name = 'language'
 
     def __init__(self, val: str):
+        super(Language, self).__init__()
         """
 
         :param val: 3-letter language code
@@ -259,15 +257,13 @@ class Bitrate(IStreamOption):
     ffprobe_name = ''
 
     def __init__(self, val: int):
+        super(Bitrate, self).__init__()
         """
 
         :param val: bitrate, in thousands
         """
         if str(val).isnumeric():
-            val = int(val)
-        else:
-            raise TypeError('Value for height should be numeric')
-        self.value = val
+            self.value = int(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Bitrate, self).parse(stream_type, stream_number)
@@ -310,11 +306,11 @@ class PixFmt(IStreamOption):
     name = 'pix_fmt'
 
     def __init__(self, val: str):
+        super(PixFmt, self).__init__()
         """
 
         :param val: pix format see pix_fmt in ffmpeg documentation
         """
-        #assert isinstance(val, str)
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -331,6 +327,7 @@ class Bsf(EncoderOption):
     name = 'bsf'
 
     def __init__(self, val: Union[list, str]):
+        super(Bsf, self).__init__()
         assert isinstance(val, (list, str))
         if isinstance(val, str):
             self.value = [val]
@@ -354,6 +351,7 @@ class Disposition(IStreamOption):
     name = 'disposition'
 
     def __init__(self, val: dict):
+        super(Disposition, self).__init__()
         self.value = {}
         for k in val:
             if k.lower() not in ['default', 'dub', 'original', 'comment', 'lyrics', 'karaoke', 'forced',
@@ -397,11 +395,9 @@ class Height(IStreamValueOption):
     name = 'height'
 
     def __init__(self, val):
+        super(Height, self).__init__()
         if str(val).isnumeric():
-            val = int(val)
-        else:
-            raise TypeError('Value for height should be numeric')
-        self.value = val
+            self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         return []
@@ -414,9 +410,9 @@ class Width(IStreamValueOption):
     name = 'width'
 
     def __init__(self, val):
-        if not str(val).isnumeric():
-            raise TypeError('Value for width should be numeric')
-        self.value = int(val)
+        super(Width, self).__init__()
+        if str(val).isnumeric():
+            self.value = int(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         return []
@@ -429,10 +425,11 @@ class Level(IStreamValueOption):
     name = 'level'
 
     def __init__(self, val):
+        super(Level, self).__init__()
         try:
             self.value = float(val)
         except:
-            raise TypeError('Value for level should be decimal')
+            pass
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Level, self).parse(stream_type, stream_number)
@@ -446,6 +443,7 @@ class Profile(IStreamOption):
     name = 'profile'
 
     def __init__(self, val):
+        super(Profile, self).__init__()
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -459,6 +457,7 @@ OptionFactory.register_option(Profile)
 class Filter(IStreamOption):
 
     def __init__(self, *filters):
+        super(Filter, self).__init__()
         self._filters = []
         self.add_filter()
 
@@ -522,5 +521,3 @@ class UnsupportedStreamType(Exception):
 
 class UnsupportedOption(Exception):
     pass
-
-
