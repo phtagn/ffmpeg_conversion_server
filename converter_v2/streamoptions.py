@@ -35,6 +35,8 @@ class IStreamOption(metaclass=ABCMeta):
         if stream_number is not None:
             self.stream_specifier = f'{self.stream_specifier}:{stream_number}'
 
+        return []
+
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
@@ -522,30 +524,3 @@ class UnsupportedOption(Exception):
     pass
 
 
-if __name__ == '__main__':
-    myopt = OptionClassFactory.get_istreamoption('Disposition', 'totot')
-
-    import converter.streams as streams
-
-    filters = Filter()
-    f = Scale((720, 400))
-    d = Deblock(filter='weak', block=4, alpha=0.12, beta=0.07)
-    filters.add_filter(d)
-    filters.add_filter(f)
-    print(filters.parse('v', 0))
-
-    toto = OptionFactory.get_option_by_type(Codec)
-    toto('ac3')
-
-    of = OptionFactory()
-    myoptr = of.get_option('bitrate')
-
-    astream = streams.AudioStream(codec='toto',
-                                  channels=Channels('a', 2),
-                                  bitrate=Bitrate('a', 1500),
-                                  language=Language('s', 'fre'),
-                                  disposition={})
-    bsf = Bsf('a', ['toto', 'tata'])
-    print(bsf.parse())
-    print(astream.channels.parse(), astream.bitrate.parse(), astream.language.parse())
-    print('yeah')
