@@ -5,6 +5,9 @@ from converter_v2.encoders import SubtitleCopy
 from converter_v2.streamoptions import Disposition
 from converter_v2.streams import AudioStream, VideoStream, SubtitleStream, StreamFactory, Stream
 from converter_v2.templates import Templates
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class Container(object):
@@ -283,9 +286,9 @@ class LinkedContainer(object):
         newpairs = self._stream_pairs[:]
 
         for pair in self._stream_pairs:
-            (source_index, source_stream), (target_index, target_stream) = pair
-            for filter in streams:
-                if isinstance(target_stream, type(filter)) and target_stream != filter:
+            (_, _), (target_index, target_stream) = pair
+            for _filter in streams:
+                if isinstance(target_stream, type(_filter)) and target_stream != _filter:
                     newpairs.remove(pair)
         p = []
         for idx, pair in enumerate(newpairs):

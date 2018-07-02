@@ -1,14 +1,14 @@
 from typing import Union
 
 from converter_v2.streamoptions import Codec
-from converter_v2.streams import VideoStream, StreamFactory, AudioStream, SubtitleStream, Stream
+from converter_v2.streams import VideoStream, AudioStream, SubtitleStream, Stream
 
 
 class Template(Stream):
     """Class for stream templates. The only difference between templates and streams is that
     templates may allow for an option to be present multiple times. This is to avoid having
     to build a template for every different permutation of options around a stream format. For example
-    a user may allow profiles
+    a user may allow 3 profiles in H264 and 2 pix formats, which would mean 6 templates.
     Templates are centered on a """
 
     def add_option(self, *options):
