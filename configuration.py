@@ -1,9 +1,9 @@
-from configobj import ConfigObj, Section
+from configobj import ConfigObj
 from configobj import flatten_errors
 from typing import Union
 import validate
 import logging
-from configuration.defaultconfig import configspec
+from configuration_mod.defaultconfig import configspec
 import os
 import languagecode
 
@@ -122,45 +122,10 @@ class cfgmgr(object):
             self._usercfg['Containers'][section]['subtitle']['accepted_track_formats'] = getalias(
                 self._usercfg['Containers'][section]['subtitle']['accepted_track_formats'])
 
-            # Make sure that the transcode_to is also in accepted_track_formats
-            if self._usercfg['Containers'][section]['video']['transcode_to'] not in \
-                    self._usercfg['Containers'][section]['video']['accepted_track_formats']:
-                self._usercfg['Containers'][section]['video']['accepted_track_formats'].append(
-                    self._usercfg['Containers'][section]['video']['transcode_to'])
-
-            if self._usercfg['Containers'][section]['audio']['transcode_to'] not in \
-                    self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
-                self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(
-                    self._usercfg['Containers'][section]['audio']['transcode_to'])
-
-            # for audio only, make sure that the force_create_tracks are also on accepted track formats:
-            for codec in self._usercfg['Containers'][section]['audio']['force_create_tracks']:
-
-                if codec not in self._usercfg['Containers'][section]['audio']['accepted_track_formats']:
-                    self._usercfg['Containers'][section]['audio']['accepted_track_formats'].append(codec)
-
         # Make sure that languages are in the correct ISO standard.
         for t in ['audio', 'subtitle']:
             self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
 
-    def extract_stream_config(self, typ):
-        fmts = (self._usercfg['Containers'][typ]['video'].get('accepted_track_formats'),
-                        [self._usercfg['Containers'][typ]['video'].get('transcode_to')],
-                        self._usercfg['Containers'][typ]['audio'].get('accepted_track_formats'),
-                        self._usercfg['Containers'][typ]['audio'].get('force_create_tracks'),
-                        [self._usercfg['Containers'][typ]['audio'].get('transcode_to')],
-                        self._usercfg['Containers'][typ]['subtitle'].get('accepted_track_formats'),
-                        [self._usercfg['Containers'][typ]['subtitle'].get('transcode_to')])
-
-        trackformats = []
-        for fmt in fmts:
-            trackformats.extend(fmt)
-
-        trackformats = list(set(trackformats))
-
-        r = {tfmt: self._usercfg['TrackFormats'][tfmt] for tfmt in trackformats}
-        print(type(r))
-        return r
 
     @staticmethod
     def properNone(section, key):
@@ -200,5 +165,5 @@ if __name__ == '__main__':
     cm = cfgmgr()
     cm.savedefaults()
 #    cm.load('defaults.ini', overrides=toto)
-#    tf = cm.extract_stream_config('mp4')
+
 #    print(tf)

@@ -125,6 +125,7 @@ class Aac(_AudioCodec):
     ffmpeg_codec_name = 'aac'
     supported_options = _AudioCodec.supported_options.copy()
 
+
 class FdkAac(_AudioCodec):
     """
     AAC audio codec.

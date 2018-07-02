@@ -15,8 +15,6 @@ exposed_options = {
     Bsf.__name__: 'string(default=None)',
     Crf.__name__: 'integer(default=23)'}
 
-
-
 encoders = OrderedDict()
 
 videocodecs = OrderedDict()
@@ -48,11 +46,11 @@ for fmt_name, fmt in StreamFormatFactory.formats.items():
             optdict.update({opt.__name__: exposed_options[opt.__name__]})
             if optdict:
                 if issubclass(fmt, VideoStream):
-                    videostreams.update({fmt.__name__[:-6]: optdict})
+                    videostreams.update({fmt.__name__[:-6].lower(): optdict})
                 elif issubclass(fmt, AudioStream):
-                    audiostreams.update({fmt.__name__[:-6]: optdict})
+                    audiostreams.update({fmt.__name__[:-6].lower(): optdict})
                 elif issubclass(fmt, SubtitleStream):
-                    subtitlestreams.update({fmt.__name__[:-6]: optdict})
+                    subtitlestreams.update({fmt.__name__[:-6].lower(): optdict})
 
 streams = {**videostreams, **audiostreams, **subtitlestreams}
 
@@ -84,29 +82,29 @@ defaultconfig = {
         'permissions': 'integer(default=777)'
     },
     'Containers': {
-        'video': {
-            'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
-            'prefer_method': 'option(copy, transcode, override, default=copy)',
-            'transcode_to': 'string(default=h264)'
-        },
+        'mp4': {
+            'video': {
+                'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
+                'ignore_presets': 'boolean(default=True)'
+            },
 
-        'audio': {
-            'accepted_track_formats': 'force_list(default=list(aac, ac3))',
-            'audio_copy_original': 'boolean(default=False)',
-            'create_multiple_stereo_tracks': 'boolean(default=False)',
-            'force_create_tracks': 'force_list(default=None)',
-            'transcode_to': 'string(default=aac)',
-        },
+            'audio': {
+                'accepted_track_formats': 'force_list(default=list(aac, ac3))',
+                'audio_copy_original': 'boolean(default=False)',
+                'create_multiple_stereo_tracks': 'boolean(default=False)',
+                'force_create_tracks': 'force_list(default=None)',
+                'ignore_presets': 'boolean(default=True)'
+            },
 
-        'subtitle': {
-            'accepted_track_formats': 'force_list(default=list(mov_text))',
-            'transcode_to': 'string(default=mov_text)'
-        },
+            'subtitle': {
+                'accepted_track_formats': 'force_list(default=list(mov_text))',
+                'ignore_presets': 'boolean(default=True)'
+            },
 
-        'post_processors': 'force_list(default=None)',
-        'preopts': 'string(default=None)',
-        'postopts': 'string(default=None)'
-    },
+            'post_processors': 'force_list(default=None)',
+            'preopts': 'string(default=None)',
+            'postopts': 'string(default=None)'
+        }},
     'StreamFormats': streams,
     'Encoders': encoders}
 

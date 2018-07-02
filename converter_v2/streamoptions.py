@@ -13,7 +13,12 @@ class IStreamOption(metaclass=ABCMeta):
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        """Returns the list of options to pass ffmpeg"""
+        """
+
+        :param stream_type: str, the type of stream
+        :param stream_number:
+        :return:
+        """
         if stream_type == 'a' or stream_type == 'audio':
             self.stream_specifier = 'a'
 
@@ -94,10 +99,18 @@ class OptionFactory(object):
     @classmethod
     def get_option(cls, name):
 
-        if name in cls.options:
+        try:
+            return cls.options[name.lower()]
+        except KeyError:
+            pass
+
+        try:
             return cls.options[name]
-        else:
-            raise UnsupportedOption
+        except KeyError:
+            pass
+
+        log.debug(f'Option {name} is not supported')
+        return None
 
     @classmethod
     def get_option_from_ffprobe(cls, ffprobe_name):
@@ -110,7 +123,7 @@ class OptionFactory(object):
     @classmethod
     def register_option(cls, option):
         assert issubclass(option, IStreamOption)
-        cls.options.update({option.name: option})
+        cls.options.update({option.__name__: option})
 
     @classmethod
     def get_option_by_type(cls, opt):
@@ -195,7 +208,11 @@ class Channels(IStreamValueOption):
 
         :param val: number of audio channels, from 1 to 12
         """
-        assert isinstance(val, int)
+        if str(val).isnumeric():
+            val = int(val)
+        else:
+            raise TypeError('Value for height should be numeric')
+        self.value = val
 
         if val > 12:
             self.value = 12
@@ -244,7 +261,10 @@ class Bitrate(IStreamOption):
 
         :param val: bitrate, in thousands
         """
-        assert isinstance(val, int)
+        if str(val).isnumeric():
+            val = int(val)
+        else:
+            raise TypeError('Value for height should be numeric')
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -292,7 +312,7 @@ class PixFmt(IStreamOption):
 
         :param val: pix format see pix_fmt in ffmpeg documentation
         """
-        assert isinstance(val, str)
+        #assert isinstance(val, str)
         self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -385,6 +405,9 @@ class Height(IStreamValueOption):
         return []
 
 
+OptionFactory.register_option(Height)
+
+
 class Width(IStreamValueOption):
     name = 'width'
 
@@ -395,6 +418,9 @@ class Width(IStreamValueOption):
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         return []
+
+
+OptionFactory.register_option(Width)
 
 
 class Level(IStreamValueOption):
@@ -411,6 +437,9 @@ class Level(IStreamValueOption):
         return [f'-level:{self.stream_specifier}', f'{self.value:.{1}}']
 
 
+OptionFactory.register_option(Level)
+
+
 class Profile(IStreamOption):
     name = 'profile'
 
@@ -420,6 +449,9 @@ class Profile(IStreamOption):
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Profile, self).parse(stream_type, stream_number)
         return [f'-profile:{self.stream_specifier}', str(self.value)]
+
+
+OptionFactory.register_option(Profile)
 
 
 class Filter(IStreamOption):
