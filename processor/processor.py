@@ -7,15 +7,9 @@ import converter_v2.ffmpeg
 
 import os
 import logging
-import sys
-#logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
-sh = logging.StreamHandler(sys.stdout)
-sh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-sh.setFormatter(formatter)
-log.addHandler(sh)
+
+log = logging.getLogger(__name__)
+
 """Processes a video file in steps:
 1) Analyse video file
 2) Assess appropriate streams from options
@@ -28,6 +22,15 @@ log.addHandler(sh)
 class Processor(object):
 
     def __init__(self, config, inputfile, target):
+        """
+        Creates a target container from the inputfile, taking into account the configuration
+        :param config: a configuration object
+        :type config: ConfigObj
+        :param inputfile: path to the input file
+        :type inputfile: os.path.abspath
+        :param target: the target container to create
+        :type target: str
+        """
         self.config = config
         if os.path.exists(inputfile):
             self.infile = inputfile
@@ -98,10 +101,10 @@ class Processor(object):
         linked_container = ContainerFactory.container_from_templates(self.source_container, self.target, templates)
 
         # Second, add the audio tracks that we need, without duplication
-        #for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:
-        #    for idx, audio_stream in self.source_container.audio_streams.items():
-        #        aud = AudioStream(Codec(force_track), audio_stream.get_option_by_type(Language))
-        #        linked_container.add_no_dup(((idx, audio_stream), aud))
+        for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:
+            for idx, audio_stream in self.source_container.audio_streams.items():
+                aud = AudioStream(Codec(force_track), audio_stream.get_option_by_type(Language))
+                linked_container._add_audio_pair(((idx, audio_stream), aud))
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             log.debug('Analysis result:\n %s ', str(linked_container))
@@ -120,17 +123,12 @@ class Processor(object):
 
 
 if __name__ == '__main__':
-    laptop = '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv'
-    desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
+    import os
+    laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
+    desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, desktop, 'mp4')
+    p = Processor(cfgmgr.cfg, laptop, 'mp4')
     tctn = p.process_container()
-
-#    for idx in range(len(tctn.stream_pairs)):
-#        print(f'{idx}:')
-#        t = tctn.print_compare(idx)
-#        print('\n'.join(t))
-#        print('\n')
 
 #    p.convert('/Users/Jon/Downloads/test.mp4')

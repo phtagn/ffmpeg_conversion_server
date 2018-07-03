@@ -231,39 +231,37 @@ class LinkedContainer(object):
         assert isinstance(pair[0][1], type(pair[1]))
 
         if isinstance(pair[1], AudioStream):
-            self._stream_pairs.append([pair[0], [self.audio_stream_count, pair[1]]])
-            self.audio_stream_count += 1
+            self._add_audio_pair(pair)
         elif isinstance(pair[1], VideoStream):
-            self._stream_pairs.append([pair[0], [self.video_stream_count, pair[1]]])
-            self.video_stream_count += 1
+            self._add_video_pair(pair)
         elif isinstance(pair[1], SubtitleStream):
-            self._stream_pairs.append([pair[0], [self.subtitle_stream_count, pair[1]]])
-            self.subtitle_stream_count += 1
+            self._add_subtitle_pair(pair)
 
-    def add_no_dup(self, pair):
-
-        if isinstance(pair[1], AudioStream):
-            l = self.audio_stream_pairs
-            c = [self.audio_stream_count]
-        elif isinstance(pair[1], VideoStream):
-            l = self.video_stream_pairs
-            c = [self.video_stream_count]
-        elif isinstance(pair[1], SubtitleStream):
-            l = self.subtitle_stream_pairs
-            c = [self.subtitle_stream_count]
-
+    def _add_audio_pair(self, pair: List[Union[list, Stream]], allow_duplicate=False):
         duplicate = False
-        for pair in l:
-            (source_idx, source_stream), (target_idx, target_stream) = l
-            if pair[1][1] == target_stream:
-                duplicate = True
-                break
+        if not allow_duplicate:
+            for stream_pair in self.audio_stream_pairs:
+                (_, _), (_, target_stream) = stream_pair
+                if target_stream == pair[1]:
+                    duplicate = True
+                    log.debug('Duplicate detected %s: %s', str(pair[1]), str(target_stream))
+                    break
 
         if not duplicate:
-            self._stream_pairs.append((pair[0], (c[0], pair[1])))
-            c[0] += 1
-        else:
-            log.debug('Not added')
+            self._stream_pairs.append([pair[0], [self.audio_stream_count, pair[1]]])
+            self.audio_stream_count += 1
+
+    def _add_video_pair(self, pair: List[Union[list, Stream]], allow_duplicate=False):
+        self._stream_pairs.append([pair[0], [self.video_stream_count, pair[1]]])
+        self.video_stream_count += 1
+
+    def _add_subtitle_pair(self, pair: List[Union[list, Stream]], allow_duplicate=False):
+
+        self._stream_pairs.append([pair[0], [self.subtitle_stream_count, pair[1]]])
+        self.subtitle_stream_count += 1
+
+    def add_no_dup(self, pair):
+        pass
 
     @property
     def video_stream_pairs(self):

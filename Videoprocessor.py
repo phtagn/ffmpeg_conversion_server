@@ -2,22 +2,26 @@ import configuration
 import logging
 import os
 from transitions import Machine, State
-from converter.ffmpeg import FFMpeg
-from converter.target import TargetContainerFactory
-from converter.optiongenerator import OptionGenerator
+from processor import processor
 from fetchers.fetchers import FetchersFactory
 from taggers import tagger
 from helpers.helpers import breakdown
 import shutil
+import sys
 
-logging.basicConfig(filename='server.log', filemode='w', level=logging.DEBUG)
-log = logging.getLogger(__name__)
+log = logging.getLogger()
 log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
 
 
 class VideoProcessor(object):
 
-    def __init__(self, infile: str, target: str, config: str=None, overrides: dict=None, tagging_info: dict = None, notify: list=None):
+    def __init__(self, infile: str, target: str, config: str = None, overrides: dict = None, tagging_info: dict = None,
+                 notify: list = None):
         """
         Videoprocessor contains the methods to process a video from start to finish. The steps are :
         1) Analyse the input file to determine the source container, and create the theoretical target container
@@ -49,22 +53,8 @@ class VideoProcessor(object):
             self.target = target
 
 
-        # stash config in variables:
-            self.video_accepted_formats = self.config['Containers'][target]['video'].get('accepted_track_formats')
-            self.video_transcode_to = self.config['Containers'][target]['video'].get('transcode_to')
-            self.video_prefer_method = self.config['Containers'][target]['video'].get('prefer_method')
-
-            self.audio_accepted_formats = self.config['Containers'][target]['audio'].get('accepted_track_formats')
-            self.audio_copy_original = self.config['Containers'][target]['audio'].get('audio_copy_original')
-            self.audio_force_create = self.config['Containers'][target]['audio'].get('force_create_tracks')
-            self.audio_transcode_to = self.config['Containers'][target]['audio'].get('transcode_to')
-
-            self.subtitle_accepted_formats = self.config['Containers'][target]['subtitle'].get('accepted_track_formats')
-            self.subtitle_transcode_to = self.config['Containers'][target]['subtitle'].get('transcode_to')
         else:
             raise Exception(f'Unsupported container, valid containers are {self.config.keys()}')
-
-
 
         path = os.path.abspath(infile)
         if os.path.isfile(path):
@@ -72,9 +62,9 @@ class VideoProcessor(object):
         else:
             raise IOError(f'File {path} does not exist')
 
-        self.tagging_info = tagging_info
+        self.processor = processor.Processor(self.config, self.inputfile, self.target)
 
-        self.ffmpeg = FFMpeg(self.config['FFMPEG'].get('ffmpeg'), self.config['FFMPEG'].get('ffprobe'))
+        self.tagging_info = tagging_info
 
         self.fh = FileHandler(copy_to=self.config['File'].get('copy_to'),
                               move_to=self.config['File'].get('move_to'),
@@ -96,35 +86,8 @@ class VideoProcessor(object):
         Processes the sourcefile into a target container
         :return: None
         """
-        source_container = self.ffmpeg.probe(self.inputfile)
-        ctnfactory = TargetContainerFactory(self.config,
-                                            video_accepted_formats=self.video_accepted_formats,
-                                            video_prefer_method=self.video_prefer_method,
-                                            video_transcode_to=self.video_transcode_to,
-                                            audio_accepted_formats=self.audio_accepted_formats,
-                                            audio_transcode_to=self.audio_transcode_to,
-                                            audio_force_create=self.audio_force_create,
-                                            audio_copy_original=self.audio_copy_original,
-                                            audio_accepted_languages=self.config['Languages'].get('audio'),
-                                            subtitle_accepted_formats=self.subtitle_accepted_formats,
-                                            subtitle_accepted_languages=self.config['Languages'].get('subtitle'),
-                                            subtitle_transcode_to=self.subtitle_transcode_to,
-                                            typ = self.target)
-
-        self.container = ctnfactory.build_target_container(source_container)
-
-    def do_convert(self):
-        """
-        Do the converion, i.e. call ffmpeg to actually convert the file.
-        :return: None
-        """
-        opts = OptionGenerator(self.config).get_options(self.container)
-        try:
-            for timecode in self.ffmpeg.convert(self.inputfile, self.full_work_path, opts, preopts=None, postopts=None):
-                print(timecode)
-        except Exception as e:
-            log.critical('Conversion failed with message %s', e)
-            self.full_work_path = None
+        target_container = self.processor.process_container()
+        self.outputfile = self.processor.convert()
 
     def do_tag(self):
         if self.tagging_info:
@@ -148,11 +111,13 @@ class VideoProcessor(object):
             else:
                 posterfile = None
 
-            t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path, artworkfile=posterfile)
+            t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path,
+                                                artworkfile=posterfile)
             if t:
                 t.writetags()
             else:
-                log.info('Tagging is not supported for container %s at this time, skipping', self.container.format.format_name)
+                log.info('Tagging is not supported for container %s at this time, skipping',
+                         self.container.format.format_name)
 
     def do_postprocess(self):
         if not self.full_work_path:
@@ -161,7 +126,8 @@ class VideoProcessor(object):
 
         from postprocesses import PostProcessorFactory
         try:
-            postprocesses = PostProcessorFactory.get_post_processors(self.config['Containers'][target].get('post_processors'))
+            postprocesses = PostProcessorFactory.get_post_processors(
+                self.config['Containers'][target].get('post_processors'))
         except:
             log.info('No post processing needed')
             postprocesses = None
@@ -187,7 +153,7 @@ class VideoProcessor(object):
 
 class FileHandler(object):
 
-    def __init__(self, copy_to=None, move_to=None, permissions=None, delete: bool=None):
+    def __init__(self, copy_to=None, move_to=None, permissions=None, delete: bool = None):
         self.copy_to = copy_to
         self.move_to = move_to
         self.mask = permissions
@@ -246,8 +212,7 @@ class MachineFactory(object):
         states = ['rest']
 
         states.append(State(name='processed', on_enter=['do_process']))
-        states.append(State(name='converted', on_enter=['do_convert']))
-        states.append(State(name='tagged', on_enter=['do_tag']))
+        # states.append(State(name='tagged', on_enter=['do_tag']))
         states.append(State(name='postprocessed', on_enter=['do_postprocess']))
         states.append(State(name='deployed', on_enter=['do_deploy']))
         states.append(State(name='refreshed', on_enter=['do_refresh']))
@@ -257,11 +222,13 @@ class MachineFactory(object):
 
         return videoprocessor
 
+
 def process(videoprocessor):
     while True:
         videoprocessor.next_state()
         if videoprocessor.state == 'refreshed':
             break
+
 
 if __name__ == '__main__':
     showid = 75978
@@ -274,7 +241,7 @@ if __name__ == '__main__':
             'id_type': id_type,
             'season': 16,
             'episode': 18
-           }
+            }
 
     VP = MachineFactory.get(infile=infile, config=configname, target=target, tagging_info=tagging_info)
 
@@ -286,6 +253,4 @@ if __name__ == '__main__':
         if VP.state == 'refreshed':
             break
 
-
 print('yeah')
-
