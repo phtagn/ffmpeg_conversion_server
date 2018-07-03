@@ -6,7 +6,6 @@ from typing import Union
 log = logging.getLogger(__name__)
 
 
-
 class IStreamOption(metaclass=ABCMeta):
     name = ''
     ffprobe_name = ''
@@ -427,7 +426,8 @@ class Level(IStreamValueOption):
     def __init__(self, val):
         super(Level, self).__init__()
         try:
-            self.value = float(val)
+            if float(val) > 0:
+                self.value = float(val)
         except:
             pass
 

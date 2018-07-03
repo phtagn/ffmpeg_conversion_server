@@ -1,5 +1,5 @@
 import copy
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, List
 
 from converter_v2.encoders import SubtitleCopy
 from converter_v2.streamoptions import Disposition
@@ -202,7 +202,7 @@ class ContainerFactory(object):
                 target_stream.add_option(target_option)
 
             if len(target_stream.options) > 0:
-                ctn.add_stream_pairs(((idx, stream), target_stream))
+                ctn.add_stream_pairs([[idx, stream], target_stream])
 
         return ctn
 
@@ -225,20 +225,45 @@ class LinkedContainer(object):
     def stream_pairs(self):
         return self._stream_pairs
 
-    def add_stream_pairs(self, pair: Tuple[tuple, Stream]):
+    def add_stream_pairs(self, pair: List[Union[list, Stream]]):
         if len(pair[0]) != 2:
             raise Exception('Not acceptable')
         assert isinstance(pair[0][1], type(pair[1]))
 
         if isinstance(pair[1], AudioStream):
-            self._stream_pairs.append((pair[0], (self.audio_stream_count, pair[1])))
+            self._stream_pairs.append([pair[0], [self.audio_stream_count, pair[1]]])
             self.audio_stream_count += 1
         elif isinstance(pair[1], VideoStream):
-            self._stream_pairs.append((pair[0], (self.video_stream_count, pair[1])))
+            self._stream_pairs.append([pair[0], [self.video_stream_count, pair[1]]])
             self.video_stream_count += 1
         elif isinstance(pair[1], SubtitleStream):
-            self._stream_pairs.append((pair[0], (self.subtitle_stream_count, pair[1])))
+            self._stream_pairs.append([pair[0], [self.subtitle_stream_count, pair[1]]])
             self.subtitle_stream_count += 1
+
+    def add_no_dup(self, pair):
+
+        if isinstance(pair[1], AudioStream):
+            l = self.audio_stream_pairs
+            c = [self.audio_stream_count]
+        elif isinstance(pair[1], VideoStream):
+            l = self.video_stream_pairs
+            c = [self.video_stream_count]
+        elif isinstance(pair[1], SubtitleStream):
+            l = self.subtitle_stream_pairs
+            c = [self.subtitle_stream_count]
+
+        duplicate = False
+        for pair in l:
+            (source_idx, source_stream), (target_idx, target_stream) = l
+            if pair[1][1] == target_stream:
+                duplicate = True
+                break
+
+        if not duplicate:
+            self._stream_pairs.append((pair[0], (c[0], pair[1])))
+            c[0] += 1
+        else:
+            log.debug('Not added')
 
     @property
     def video_stream_pairs(self):
@@ -265,18 +290,6 @@ class LinkedContainer(object):
                     stream.add_option(Disposition({'default': 1 if k == 0 else 0}))
                 k += 1
 
-    def print_compare(self, idx):
-        (source_index, source_stream), (target_index, target_stream) = self.stream_pairs[idx]
-        cmp = []
-
-        for opt_name, opt in source_stream.options.items():
-            if opt_name in target_stream.options:
-                cmp.append(f'{opt_name}: {opt.value} -> {target_stream.options[opt_name].value}')
-            else:
-                cmp.append(f'{opt_name}: {opt.value} -> =')
-
-        return cmp
-
     def __str__(self):
 
         from io import StringIO
@@ -284,13 +297,13 @@ class LinkedContainer(object):
 
         for pair in self.stream_pairs:
             (source_index, source_stream), (target_index, target_stream) = pair
-            s.write(f'\nSource stream {source_index} -> Target Stream {target_index}\n')
+            s.write(f'\nSource stream #{source_index} -> Target {target_stream.__class__.__name__} #{target_index}\n')
             for opt_name, opt in source_stream.options.items():
                 if opt_name in target_stream.options:
                     s.write(f'{opt_name}: {opt.value} -> {target_stream.options[opt_name].value}\n')
                 else:
                     s.write(f'{opt_name}: {opt.value} -> =\n')
-            s.write('-'*10)
+            s.write('-' * 10)
 
         return s.getvalue()
 

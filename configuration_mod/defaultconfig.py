@@ -6,14 +6,15 @@ from converter_v2.streamformats import *
 from converter_v2.streamoptions import EncoderOption
 
 exposed_options = {
-    Bitrate.__name__: 'integer(default=1500)',
+    Bitrate.__name__: 'integer(default=-1)',
     PixFmt.__name__: 'force_list(default=list(None))',
-    Channels.__name__: 'integer(default=2)',
-    Level.__name__: 'float(default=4.0)',
+    Channels.__name__: 'integer(default=-1)',
+    Level.__name__: 'float(default=-1)',
     Profile.__name__: 'force_list(default=list(High))',
-    Height.__name__: 'integer(default=1080)',
+    Height.__name__: 'integer(default=-1)',
     Bsf.__name__: 'string(default=None)',
-    Crf.__name__: 'integer(default=23)'}
+    Crf.__name__: 'integer(default=-1)',
+    Width.__name__: 'integer(default=-1)'}
 
 encoders = OrderedDict()
 

@@ -93,11 +93,16 @@ class Processor(object):
     def process_container(self):
         # First, remove languages that we do not want from audio and video
         self.process_languages()
-        # Second, add the audio tracks that we need
 
         templates = self._build_templates()
         linked_container = ContainerFactory.container_from_templates(self.source_container, self.target, templates)
-        print(f'tototoot: {linked_container}')
+
+        # Second, add the audio tracks that we need, without duplication
+        #for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:
+        #    for idx, audio_stream in self.source_container.audio_streams.items():
+        #        aud = AudioStream(Codec(force_track), audio_stream.get_option_by_type(Language))
+        #        linked_container.add_no_dup(((idx, audio_stream), aud))
+
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
             log.debug('Analysis result:\n %s ', str(linked_container))
 
@@ -119,7 +124,7 @@ if __name__ == '__main__':
     desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, laptop, 'mp4')
+    p = Processor(cfgmgr.cfg, desktop, 'mp4')
     tctn = p.process_container()
 
 #    for idx in range(len(tctn.stream_pairs)):

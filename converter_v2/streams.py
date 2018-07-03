@@ -25,7 +25,6 @@ class Stream(ABC):
             if type(opt) in self.supported_options and opt.value is not None:
                 if opt.__class__.__name__ not in self._options:
                     self._options.update({opt.__class__.__name__: opt})
-                    log.debug('Option %s added to %s', str(opt), opt.__class__.__name__)
                 else:
                     log.warning('Option %s already present, not adding', opt.__class__.__name__)
             else:

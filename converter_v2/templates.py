@@ -14,7 +14,7 @@ class Template(Stream):
 
     def add_option(self, *options):
         for opt in options:
-            if type(opt) in self.supported_options:
+            if type(opt) in self.supported_options and opt.value is not None:
                 if opt.__class__.__name__ not in self._options:
                     self._options.update({opt.__class__.__name__: [opt]})
                 else:
