@@ -9,10 +9,13 @@ log = logging.getLogger(__name__)
 class IStreamOption(metaclass=ABCMeta):
     name = ''
     ffprobe_name = ''
-    """Interface for options that apply to streams. The constructor builds the stream specifier"""
+    incompatible_with = []
+
+    """Interface for options that apply to streams. The constructor builds the stream specifier (e.g. a:0, v:1)."""
 
     def __init__(self):
         self.value = None
+        self.stream_specifier = None
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -54,15 +57,22 @@ class IStreamOption(metaclass=ABCMeta):
         return f'{self.__class__.__name__}: {self.value}'
 
 
-class OptionClassFactory(object):
+class MetadataOption(IStreamOption):
+    """Specific class for metadata options. Those need to be copied even if they are identical to the
+    input options"""
+    pass
 
-    @staticmethod
-    def get_istreamoption(name, argnames):
-        option = type(name, (IStreamOption,), {'__init__': IStreamOption.__init__})
-        return option
+
+class EncoderOption(IStreamOption):
+    """A specific type for options that are supported only by encoders. Streams (e.g. VideoStream...) will not accept
+    those options."""
+    pass
 
 
 class IStreamValueOption(IStreamOption):
+    """This is the class for options that support a numeric value. For those, lt, gt, ge, le, are supported
+    on top of eq. A separate class is useful for the rest of the program to identify whether the option can support
+    those operations."""
 
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
@@ -97,10 +107,6 @@ class IStreamValueOption(IStreamOption):
         return False
 
 
-class EncoderOption(IStreamOption):
-    pass
-
-
 class OptionFactory(object):
     options = {}
 
@@ -117,16 +123,16 @@ class OptionFactory(object):
         except KeyError:
             pass
 
-        log.debug(f'Option {name} is not supported')
+        log.debug(f'Factory could not find option {name}. Is it supported ? Is it registered ?')
         return None
 
-    @classmethod
-    def get_option_from_ffprobe(cls, ffprobe_name):
-        ffprobe_dict = {option.ffprobe_name: option for option in cls.options.values()}
-        if ffprobe_name in ffprobe_dict:
-            return ffprobe_dict[ffprobe_name]
-        else:
-            return None
+    #    @classmethod
+    #    def get_option_from_ffprobe(cls, ffprobe_name):
+    #        ffprobe_dict = {option.ffprobe_name: option for option in cls.options.values()}
+    #        if ffprobe_name in ffprobe_dict:
+    #            return ffprobe_dict[ffprobe_name]
+    #        else:
+    #            return None
 
     @classmethod
     def register_option(cls, option):
@@ -176,21 +182,26 @@ OptionFactory.register_option(Fps)
 
 
 class Crf(EncoderOption):
+    incompatible_with = []
 
     def __init__(self, val: int):
         super(Crf, self).__init__()
-        if 51 > val > 0:
-            self.value = val
+        try:
+            if 51 > val > 0:
+                self.value = val
+        except TypeError:
+            pass
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
         super(Crf, self).parse(stream_type, stream_number)
         return [f'-crf:{self.stream_specifier}', str(self.value)]
 
 
-OptionFactory.register_option(EncoderOption)
+OptionFactory.register_option(Crf)
 
 
 class Map(IStreamValueOption):
+    """The map option."""
 
     def __init__(self, val: tuple):
         super(Map, self).__init__()
@@ -228,10 +239,11 @@ class Channels(IStreamValueOption):
 OptionFactory.register_option(Channels)
 
 
-class Language(IStreamOption):
+class Language(MetadataOption):
     """Language option, applies to audio and subtitle streams"""
     name = 'language'
     ffprobe_name = 'language'
+    must_copy = True
 
     def __init__(self, val: str):
         super(Language, self).__init__()
@@ -327,11 +339,11 @@ class Bsf(EncoderOption):
 
     def __init__(self, val: Union[list, str]):
         super(Bsf, self).__init__()
-        assert isinstance(val, (list, str))
-        if isinstance(val, str):
-            self.value = [val]
-        else:
-            self.value = val
+        if val:
+            if isinstance(val, str):
+                self.value = [val]
+            elif isinstance(val, list):
+                self.value = val
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Bsf, self).parse(stream_type, stream_number)
@@ -433,7 +445,7 @@ class Level(IStreamValueOption):
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Level, self).parse(stream_type, stream_number)
-        return [f'-level:{self.stream_specifier}', f'{self.value:.{1}}']
+        return [f'-level:{self.stream_specifier}', f'{self.value:{1}}']
 
 
 OptionFactory.register_option(Level)

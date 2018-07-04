@@ -1,14 +1,24 @@
 import configuration
-from converter_v2.streams import VideoStream, AudioStream, SubtitleStream, OptionBuilder
-from converter_v2.containers import ContainerFactory
+from converter_v2.streams import VideoStream, AudioStream, SubtitleStream
+from converter_v2.optionbuilder import OptionBuilder
+from converter_v2.containers import ContainerFactory, LinkedContainer
 from converter_v2.templates import StreamTemplateFactory, Templates
 from converter_v2.streamoptions import *
 import converter_v2.ffmpeg
 
+from converter_v2.encoders import CodecFactory
 import os
+import sys
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
+# log = logging.getLogger(__name__)
 
 """Processes a video file in steps:
 1) Analyse video file
@@ -61,11 +71,12 @@ class Processor(object):
                 if codec in self.config['StreamFormats']:
 
                     for opt_name, opt_value in self.config['StreamFormats'][codec].items():
-                        if isinstance(opt_value, list):
-                            for v in opt_value:
-                                template.add_option(OptionFactory.get_option(opt_name)(v))
-                        else:
-                            template.add_option(OptionFactory.get_option(opt_name)(opt_value))
+                        if OptionFactory.get_option(opt_name):
+                            if isinstance(opt_value, list):
+                                for v in opt_value:
+                                    template.add_option(OptionFactory.get_option(opt_name)(v))
+                            else:
+                                template.add_option(OptionFactory.get_option(opt_name)(opt_value))
 
                 templates.add_template(template)
 
@@ -111,10 +122,28 @@ class Processor(object):
 
         return linked_container
 
-    def convert(self, outputfile):
+    def convert(self, container, outputfile):
+        assert isinstance(container, LinkedContainer)
         ffmpeg = converter_v2.ffmpeg.FFMpeg(self.ffmpeg_path, self.ffprobe_path)
         ob = OptionBuilder()
-        options = ob.build_options(tctn, {'aac': 'fdkaac'})
+        preferred_encoders = {}
+
+        for fmt in self.config['StreamFormats']:
+            try:
+
+                preferred_encoders.update({fmt: self.config['StreamFormats'][fmt]['encoders']})
+            except KeyError:
+                continue
+
+        encoders = []
+        for enc in self.config['Encoders']:
+            encoder = CodecFactory.get_codec_by_name(enc)
+            for opt_name, opt_value in self.config['Encoders'][enc].items():
+                if OptionFactory.get_option(opt_name):
+                    encoder.add_option(OptionFactory.get_option(opt_name)(opt_value))
+            encoders.append(encoder)
+
+        options = ob.build_options(container, preferred_encoders, *encoders)
         if options:
             for timecode in ffmpeg.convert(self.infile, outputfile, options):
                 print(timecode)
@@ -124,11 +153,12 @@ class Processor(object):
 
 if __name__ == '__main__':
     import os
+
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
     desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, laptop, 'mp4')
+    p = Processor(cfgmgr.cfg, desktop, 'mp4')
     tctn = p.process_container()
 
-#    p.convert('/Users/Jon/Downloads/test.mp4')
+    p.convert(tctn, '/Users/Jon/Downloads/test.mp4')

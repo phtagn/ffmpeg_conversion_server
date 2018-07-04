@@ -1,6 +1,6 @@
 from converter_v2.encoders import *
+from converter_v2.optionbuilder import OptionBuilder
 from converter_v2.streamoptions import *
-from converter_v2.streamformats import StreamFormatFactory
 import logging
 import copy
 
@@ -155,45 +155,6 @@ class SubtitleStream(Stream):
 #    def __init__(self, *options):
 #        super(SubtitleStream, self).__init__(*options)
 # self.type = 'subtitle'
-
-
-class OptionBuilder(object):
-
-    def __init__(self):
-        pass
-
-    def build_options(self, lctn, preferred_codec: dict, *encoders):
-        opts = []
-        for pair in lctn.stream_pairs:
-            (source_idx, source_stream), (target_idx, target_stream) = pair
-            log.debug(f'\nSource:, {source_stream}\nTarget:, {target_stream}')
-
-            fmt = target_stream.get_option_by_type(Codec).value
-
-            streamformat = StreamFormatFactory.get_format(fmt)
-
-            enc = None
-
-            if fmt in preferred_codec:
-                enc = preferred_codec[fmt]
-
-            # for k, option in source_stream.options.items():
-            #    if k in target_stream.options:
-            #        if target_stream.options[k] == option:
-            #            del target_stream.options[k]
-
-            if source_stream == target_stream:
-                encoder = streamformat.get_encoder('copy', *target_stream.options.values(), Map((0, source_idx)))
-            else:
-                encoder = streamformat.get_encoder(enc, *target_stream.options.values(), Map((0, source_idx)))
-
-            for enco in encoders:
-                if type(encoder) == type(enco):
-                    encoder.add_option(enco.options)
-
-            opts.extend(encoder.parse(target_idx))
-
-        return opts
 
 
 if __name__ == '__main__':

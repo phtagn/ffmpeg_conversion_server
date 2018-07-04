@@ -87,7 +87,7 @@ class VideoProcessor(object):
         :return: None
         """
         target_container = self.processor.process_container()
-        self.outputfile = self.processor.convert()
+        self.outputfile = self.processor.convert(self.full_work_path)
 
     def do_tag(self):
         if self.tagging_info:

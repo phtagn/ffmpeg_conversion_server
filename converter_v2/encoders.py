@@ -14,6 +14,7 @@ class _FFMpegCodec(ABC):
     ffmpeg_codec_name = None
     supported_options = [Map]
     codec_type = ''
+    incompatible_options = {Crf.__name__: Bsf.__name__}
 
     def __init__(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
         self.options = []
@@ -23,11 +24,11 @@ class _FFMpegCodec(ABC):
 
         for option in options:
             assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
-            if type(option) in self.__class__.supported_options:
+            if type(option) in self.__class__.supported_options and option.value is not None:
                 self.options.append(option)
             else:
-                pass
-                # log.error('Option %s is not supported', option.__name__)
+                log.error('Option "%s" with "value" %s rejected by encoder "%s"', option.__class__.__name__, option.value,
+                          self.__class__.__name__)
 
     def parse(self, stream_number: int):
         if self.codec_type == 'video':
