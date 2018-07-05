@@ -14,22 +14,16 @@ class Stream(ABC):
     supported_options = []
     multiple = []
 
-    def __init__(self, *options: IStreamOption):
-        self._options = {}
+    def __init__(self, *options: IStreamOption, allow_multiple=False):
+        self._options = Options(allow_multiple=allow_multiple)
         self.add_option(*options)
 
     def add_option(self, *options):
         """Add options to the options pool. Reject options if they are not supported or if the value is None.
         """
         for opt in options:
-            if type(opt) in self.supported_options and opt.value is not None:
-                if opt.__class__.__name__ not in self._options:
-                    self._options.update({opt.__class__.__name__: opt})
-                else:
-                    log.warning('Option %s already present, not adding', opt.__class__.__name__)
-            else:
-                log.warning('Option %s was rejected because unsupported by %s or None', str(opt),
-                            self.__class__.__name__)
+            if type(opt) in self.supported_options:
+                self._options = opt
 
     @property
     def options(self):
@@ -49,11 +43,11 @@ class Stream(ABC):
         # assert isinstance(option, IStreamOption)
         val = None
         try:
-            val = self.options[option.__name__]
+            val = self.options.options[option.__name__]
         except KeyError:
             pass
         try:
-            val = self.options[option.__class__.__name__]
+            val = self.options.options[option.__class__.__name__]
         except KeyError:
             pass
 
@@ -61,15 +55,15 @@ class Stream(ABC):
 
     def remove_option(self, *options: IStreamOption):
         for option in options:
-            for k, opt in self.options:
+            for k, opt in self.options.options:
                 if opt == option:
                     del self.options[k]
 
     def strict_eq(self, other):
         r = False
         if isinstance(other, type(self)):
-            for name, opt in self.options.items():
-                if other.get_option_by_name(name):
+            for name, opt in self.options.options.items():
+                if other.options.get_option(name):
                     if other.options[name] == opt:
                         r = True
                     else:
@@ -128,33 +122,47 @@ class VideoStream(Stream):
     supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile]
 
 
-#    def __init__(self, *options):
-#        super(VideoStream, self).__init__(*options)
-# self.type = 'video'
-
-#    def __copy__(self):
-#        super(VideoStream, self).__copy__()
-
-
 class AudioStream(Stream):
     supported_options = [Codec, Channels, Language, Disposition, Bitrate]
-
-
-#    def __init__(self, *options):
-#        super(AudioStream, self).__init__(*options)
-# self.type = 'audio'
-
-#    def __copy__(self):
-#        super(AudioStream, self).__copy__()
 
 
 class SubtitleStream(Stream):
     supported_options = [Codec, Language, Disposition]
 
 
-#    def __init__(self, *options):
-#        super(SubtitleStream, self).__init__(*options)
-# self.type = 'subtitle'
+class Streams(object):
+    def __init__(self, allow_identical=False):
+        self._audio_streams = []
+        self._video_streams = []
+        self._subtitle_streams = []
+        self.allow_identical = allow_identical
+
+    def add_stream(self, stream: Union[VideoStream, AudioStream, SubtitleStream]):
+        if isinstance(stream, VideoStream):
+            self._video_streams.append(stream)
+        elif isinstance(stream, AudioStream):
+            self._audio_streams.append(stream)
+        elif isinstance(stream, SubtitleStream)
+            self._subtitle_streams.append(stream)
+
+    @property
+    def video_streams(self):
+        return self._video_streams
+
+    @property
+    def audio_streams(self):
+        return self._audio_streams
+
+    @property
+    def subtitle_streams(self):
+        return self._subtitle_streams
+
+    @property
+    def streams(self):
+        return [*self._video_streams, *self._audio_streams, *self._subtitle_streams]
+
+    def __len__(self):
+        return len(self.streams)
 
 
 if __name__ == '__main__':

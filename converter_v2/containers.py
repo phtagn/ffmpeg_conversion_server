@@ -3,7 +3,7 @@ from typing import Union, Optional, List
 
 from converter_v2.encoders import SubtitleCopy
 from converter_v2.streamoptions import Disposition
-from converter_v2.streams import AudioStream, VideoStream, SubtitleStream, StreamFactory, Stream
+from converter_v2.streams import AudioStream, VideoStream, SubtitleStream, StreamFactory, Stream, Streams
 from converter_v2.templates import Templates
 import logging
 
@@ -16,7 +16,7 @@ class Container(object):
     def __init__(self, fmt):
         if fmt in self.supported_formats:
             self.format = fmt
-            self._streams = {}
+            self._streams = Streams()
 
         else:
             raise Exception('Format %s not supported', fmt)
@@ -119,7 +119,7 @@ class Container(object):
 
         return False
 
-    def container_from_ffprobe(self, filepath, ffmpegpath, ffprobepath) -> Container:
+    def container_from_ffprobe(self, filepath, ffmpegpath, ffprobepath):
         from converter_v2 import ffmpeg
 
         ff = ffmpeg.FFMpeg(ffmpegpath, ffprobepath)
@@ -135,28 +135,31 @@ class Container(object):
         for idx in range(len(parser.streams)):
 
             if parser.codec_type(idx) == 'video':
-                v = VideoStream(parser.codec(idx),
-                                parser.pix_fmt(idx),
-                                parser.height(idx),
-                                parser.width(idx),
-                                parser.bitrate(idx),
-                                parser.disposition(idx),
-                                parser.level(idx),
-                                parser.profile(idx))
+                v = VideoStream(allow_multiple=False)
+                v.add_option(parser.codec(idx),
+                             parser.pix_fmt(idx),
+                             parser.height(idx),
+                             parser.width(idx),
+                             parser.bitrate(idx),
+                             parser.disposition(idx),
+                             parser.level(idx),
+                             parser.profile(idx))
                 self.add_stream(v, idx)
 
             elif parser.codec_type(idx) == 'audio':
-                a = AudioStream(parser.codec(idx),
-                                parser.channels(idx),
-                                parser.language(idx),
-                                parser.bitrate(idx),
-                                parser.disposition(idx))
+                a = AudioStream(allow_multiple=False)
+                a.add_option(parser.codec(idx),
+                             parser.channels(idx),
+                             parser.language(idx),
+                             parser.bitrate(idx),
+                             parser.disposition(idx))
                 self.add_stream(a, idx)
 
             elif parser.codec_type(idx) == 'subtitle':
-                s = SubtitleStream(parser.codec(idx),
-                                   parser.language(idx),
-                                   parser.disposition(idx))
+                s = SubtitleStream(allow_multiple=False)
+                s.add_option(parser.codec(idx),
+                             parser.language(idx),
+                             parser.disposition(idx))
                 self.add_stream(s, idx)
 
 
@@ -212,9 +215,6 @@ class LinkedContainer(object):
 
         self._stream_pairs.append([pair[0], [self.subtitle_stream_count, pair[1]]])
         self.subtitle_stream_count += 1
-
-    def add_no_dup(self, pair):
-        pass
 
     @property
     def video_stream_pairs(self):
@@ -290,7 +290,7 @@ class LinkedContainer(object):
             for option_name, option in stream.options.items():
                 # If we find an option in the template that fits the source stream, select the source stream option
                 # If there are no corresponding option in the template stream, select the source stream option
-                template_options = tpl.get_option_by_name(option_name)
+                template_options = tpl.options.get_option(option_name)
                 target_option = None
 
                 if template_options:

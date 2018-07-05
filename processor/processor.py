@@ -91,8 +91,8 @@ class Processor(object):
         for language in self.config['Languages']['audio']:
             l.append(AudioStream(Language(language)))
             for idx, stream in self.source_container.audio_streams.items():
-                if stream.get_option_by_type(Language):
-                    if stream.get_option_by_type(Language).value == language:
+                if stream.options.get_option(Language):
+                    if stream.options.get_option(Language).value == language:
                         haslang = True
                         break
 

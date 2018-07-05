@@ -38,15 +38,21 @@ class SubtitleStreamTemplate(Template):
 class StreamTemplateFactory(object):
 
     @staticmethod
-    def get_stream_template(stream: Stream, *options) -> Union[VideoStreamTemplate,
-                                                               AudioStreamTemplate,
-                                                               SubtitleStreamTemplate]:
+    def get_stream_template(stream: Stream, *options) -> Union[VideoStream,
+                                                               AudioStream,
+                                                               SubtitleStream]:
         if isinstance(stream, VideoStream):
-            return VideoStreamTemplate(*options)
+            s = VideoStream(allow_multiple=True)
+            s.add_option(*options)
+            return s
         elif isinstance(stream, AudioStream):
-            return AudioStreamTemplate(*options)
+            s = AudioStream(allow_multiple=True)
+            s.add_option(*options)
+            return s
         elif isinstance(stream, SubtitleStream):
-            return SubtitleStreamTemplate(*options)
+            s = SubtitleStream(allow_multiple=True)
+            s.add_option(*options)
+            return s
 
 
 class Templates(object):
@@ -57,12 +63,12 @@ class Templates(object):
         self._subtitle_templates = []
 
     def add_template(self, tpl):
-        assert isinstance(tpl, (AudioStreamTemplate, VideoStreamTemplate, SubtitleStreamTemplate))
-        if isinstance(tpl, VideoStreamTemplate):
+        assert isinstance(tpl, (AudioStream, VideoStream, SubtitleStream))
+        if isinstance(tpl, VideoStream):
             self._video_templates.append(tpl)
-        elif isinstance(tpl, AudioStreamTemplate):
+        elif isinstance(tpl, AudioStream):
             self._audio_templates.append(tpl)
-        elif isinstance(tpl, SubtitleStreamTemplate):
+        elif isinstance(tpl, SubtitleStream):
             self._subtitle_templates.append(tpl)
 
     @property
@@ -129,7 +135,7 @@ class Templates(object):
         tpls = self.get_template_by_stream_type(stream)
         for tpl in tpls:
             for cdc in tpl.get_option_by_type(Codec):
-                if cdc == stream.get_option_by_type(Codec):
+                if cdc == stream.options.get_option(Codec):
                     return tpl
 
         return None

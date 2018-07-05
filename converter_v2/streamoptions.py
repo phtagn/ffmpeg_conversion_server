@@ -533,3 +533,60 @@ class UnsupportedStreamType(Exception):
 
 class UnsupportedOption(Exception):
     pass
+
+
+class Options(object):
+
+    def __init__(self, allow_multiple=False):
+        self._options = {}
+        self.allow_multiple = allow_multiple
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, opt):
+        if issubclass(opt.__class__, IStreamOption) and opt.value is not None:
+            self._options.update({opt.__class__.__name__: opt})
+        else:
+            log.debug('Option %s was rejected because of None value', str(opt))
+
+    def __getitem__(self, opt):
+        if isinstance(opt, str):
+            return self.options.get(opt, None)
+        try:
+            return self.options[opt.__name__]
+        except AttributeError:
+            pass
+        try:
+            return self.options[opt.__class__.__name__]
+        except AttributeError:
+            pass
+
+        return None
+
+    def __delitem__(self, key):
+        option = self[key]
+        if option:
+            del self.options[option.__class__.__name__]
+
+    def __iter__(self):
+        for opt_name, opt_value in self.options.items():
+            yield opt_name, opt_value
+
+
+if __name__ == '__main__':
+    c = Channels(2)
+    codec = Codec('h264')
+    o = Options()
+    o.options = c
+    o.options = codec
+
+    del o[c]
+
+    for k, v in o:
+        print(f'{k} -- {v}')
+
+    t = o[c]
+    print('yeah')
