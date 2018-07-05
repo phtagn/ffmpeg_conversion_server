@@ -181,25 +181,6 @@ class Fps(IStreamValueOption):
 OptionFactory.register_option(Fps)
 
 
-class Crf(EncoderOption):
-    incompatible_with = []
-
-    def __init__(self, val: int):
-        super(Crf, self).__init__()
-        try:
-            if 51 > val > 0:
-                self.value = val
-        except TypeError:
-            pass
-
-    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
-        super(Crf, self).parse(stream_type, stream_number)
-        return [f'-crf:{self.stream_specifier}', str(self.value)]
-
-
-OptionFactory.register_option(Crf)
-
-
 class Map(IStreamValueOption):
     """The map option."""
 
@@ -310,6 +291,25 @@ class Bitrate(IStreamOption):
 
 
 OptionFactory.register_option(Bitrate)
+
+
+class Crf(EncoderOption):
+    incompatible_with = [Bitrate]
+
+    def __init__(self, val: int):
+        super(Crf, self).__init__()
+        try:
+            if 51 > val > 0:
+                self.value = val
+        except TypeError:
+            pass
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+        super(Crf, self).parse(stream_type, stream_number)
+        return [f'-crf:{self.stream_specifier}', str(self.value)]
+
+
+OptionFactory.register_option(Crf)
 
 
 class PixFmt(IStreamOption):

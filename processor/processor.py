@@ -109,7 +109,8 @@ class Processor(object):
         self.process_languages()
 
         templates = self._build_templates()
-        linked_container = ContainerFactory.container_from_templates(self.source_container, self.target, templates)
+        linked_container = LinkedContainer(self.target)
+        linked_container.from_templates(self.source_container, templates)
 
         # Second, add the audio tracks that we need, without duplication
         for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:

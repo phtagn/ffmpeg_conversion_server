@@ -119,22 +119,18 @@ class Container(object):
 
         return False
 
-
-class ContainerFactory(object):
-
-    @staticmethod
-    def container_from_ffprobe(filepath, ffmpegpath, ffprobepath) -> Container:
+    def container_from_ffprobe(self, filepath, ffmpegpath, ffprobepath) -> Container:
         from converter_v2 import ffmpeg
 
         ff = ffmpeg.FFMpeg(ffmpegpath, ffprobepath)
         parser = ff.probe(filepath)
 
         if 'matroska' in parser.format:
-            ctn = Container('matroska')
+            self.format = Container('matroska')
         elif 'mp4' in parser.format:
-            ctn = Container('mp4')
+            self.format = Container('mp4')
         else:
-            ctn = Container(parser.format)
+            self.format = Container(parser.format)
 
         for idx in range(len(parser.streams)):
 
@@ -147,7 +143,7 @@ class ContainerFactory(object):
                                 parser.disposition(idx),
                                 parser.level(idx),
                                 parser.profile(idx))
-                ctn.add_stream(v, idx)
+                self.add_stream(v, idx)
 
             elif parser.codec_type(idx) == 'audio':
                 a = AudioStream(parser.codec(idx),
@@ -155,56 +151,13 @@ class ContainerFactory(object):
                                 parser.language(idx),
                                 parser.bitrate(idx),
                                 parser.disposition(idx))
-                ctn.add_stream(a, idx)
+                self.add_stream(a, idx)
 
             elif parser.codec_type(idx) == 'subtitle':
                 s = SubtitleStream(parser.codec(idx),
                                    parser.language(idx),
                                    parser.disposition(idx))
-                ctn.add_stream(s, idx)
-
-        return ctn
-
-    @staticmethod
-    def container_from_templates(container: Container, target: str,
-                                 templates: Templates):
-
-        assert isinstance(templates, Templates)
-        ctn = LinkedContainer(target)
-
-        for idx, stream in container.streams.items():
-            target_stream = StreamFactory.get_stream_by_type(stream)
-            tpl = templates.get_template_by_codec(stream)
-            if not tpl:
-                tpl = templates.get_default(stream)
-
-            for option_name, option in stream.options.items():
-                # If we find an option in the template that fits the source stream, select the source stream option
-                # If there are no corresponding option in the template stream, select the source stream option
-                template_options = tpl.get_option_by_name(option_name)
-                target_option = None
-
-                if template_options:
-                    for tpl_opt in template_options:
-                        if isinstance(tpl_opt.value, (int, float)):
-                            if tpl_opt and tpl_opt >= option:
-                                target_option = copy.copy(option)
-                                break
-                        else:
-                            if tpl_opt and tpl_opt == option:
-                                target_option = copy.copy(option)
-                                break
-                    if not target_option:
-                        target_option = copy.copy(template_options[0])
-                else:
-                    target_option = copy.copy(option)
-
-                target_stream.add_option(target_option)
-
-            if len(target_stream.options) > 0:
-                ctn.add_stream_pairs([[idx, stream], target_stream])
-
-        return ctn
+                self.add_stream(s, idx)
 
 
 class LinkedContainer(object):
@@ -323,3 +276,39 @@ class LinkedContainer(object):
             p.append((pair[0], (idx, pair[1][1])))
 
         return p
+
+    def from_templates(self, container: Container, templates: Templates):
+
+        assert isinstance(templates, Templates)
+
+        for idx, stream in container.streams.items():
+            target_stream = StreamFactory.get_stream_by_type(stream)
+            tpl = templates.get_template_by_codec(stream)
+            if not tpl:
+                tpl = templates.get_default(stream)
+
+            for option_name, option in stream.options.items():
+                # If we find an option in the template that fits the source stream, select the source stream option
+                # If there are no corresponding option in the template stream, select the source stream option
+                template_options = tpl.get_option_by_name(option_name)
+                target_option = None
+
+                if template_options:
+                    for tpl_opt in template_options:
+                        if isinstance(tpl_opt.value, (int, float)):
+                            if tpl_opt and tpl_opt >= option:
+                                target_option = copy.copy(option)
+                                break
+                        else:
+                            if tpl_opt and tpl_opt == option:
+                                target_option = copy.copy(option)
+                                break
+                    if not target_option:
+                        target_option = copy.copy(template_options[0])
+                else:
+                    target_option = copy.copy(option)
+
+                target_stream.add_option(target_option)
+
+            if len(target_stream.options) > 0:
+                self.add_stream_pairs([[idx, stream], target_stream])

@@ -1,6 +1,9 @@
 from converter_v2.streamformats import StreamFormatFactory
-from converter_v2.streamoptions import Codec, Map
-from converter_v2.streams import log
+from converter_v2.streamoptions import Codec, Map, Filter, Height, Width, Filters, Scale
+#from converter_v2.streams import Stream
+
+import logging
+log = logging.getLogger(__name__)
 
 
 class OptionBuilder(object):
@@ -39,7 +42,7 @@ class OptionBuilder(object):
             #        if target_stream.options[k] == option:
             #            del target_stream.options[k]
 
-            if source_stream == target_stream:
+            if source_stream == target_stream and not target_stream.get_option_by_type(Filter):
                 encoder = streamformat.get_encoder('copy', *target_stream.options.values(), Map((0, source_idx)))
             else:
                 encoder = streamformat.get_encoder(enc, *target_stream.options.values(), Map((0, source_idx)))
@@ -51,3 +54,5 @@ class OptionBuilder(object):
             opts.extend(encoder.parse(target_idx))
 
         return opts
+
+

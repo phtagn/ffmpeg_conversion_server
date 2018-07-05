@@ -27,7 +27,8 @@ class _FFMpegCodec(ABC):
             if type(option) in self.__class__.supported_options and option.value is not None:
                 self.options.append(option)
             else:
-                log.error('Option "%s" with "value" %s rejected by encoder "%s"', option.__class__.__name__, option.value,
+                log.error('Option "%s" with "value" %s rejected by encoder "%s"', option.__class__.__name__,
+                          option.value,
                           self.__class__.__name__)
 
     def parse(self, stream_number: int):
