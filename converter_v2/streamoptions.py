@@ -2,19 +2,39 @@ import languagecode
 import logging
 from abc import abstractmethod, ABCMeta
 from typing import Union
+from collections import Counter
 
 log = logging.getLogger(__name__)
 
 
-class IStreamOption(metaclass=ABCMeta):
+class IOption(metaclass=ABCMeta):
+
+    @abstractmethod
+    def __init__(self, value):
+        self._value = value
+
+    @abstractmethod
+    def parse(self, *args, **kwargs) -> list:
+        return []
+
+    @property
+    def value(self):
+        if self._value:
+            return self._value
+        else:
+            return None
+
+
+class IStreamOption(IOption):
     name = ''
     ffprobe_name = ''
     incompatible_with = []
 
     """Interface for options that apply to streams. The constructor builds the stream specifier (e.g. a:0, v:1)."""
 
-    def __init__(self):
-        self.value = None
+    @abstractmethod
+    def __init__(self, value):
+        super(IStreamOption, self).__init__(value)
         self.stream_specifier = None
 
     @abstractmethod
@@ -46,9 +66,7 @@ class IStreamOption(metaclass=ABCMeta):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
-        if self.value == other.value:
-            return True
-        return False
+        return self.value == other.value
 
     def __copy__(self):
         return type(self)(self.value)
@@ -56,14 +74,17 @@ class IStreamOption(metaclass=ABCMeta):
     def __str__(self):
         return f'{self.__class__.__name__}: {self.value}'
 
+    def __hash__(self):
+        return hash(self.value)
 
-class MetadataOption(IStreamOption):
+
+class MetadataOption(IOption):
     """Specific class for metadata options. Those need to be copied even if they are identical to the
     input options"""
     pass
 
 
-class EncoderOption(IStreamOption):
+class EncoderOption(IOption):
     """A specific type for options that are supported only by encoders. Streams (e.g. VideoStream...) will not accept
     those options."""
     pass
@@ -126,17 +147,9 @@ class OptionFactory(object):
         log.debug(f'Factory could not find option {name}. Is it supported ? Is it registered ?')
         return None
 
-    #    @classmethod
-    #    def get_option_from_ffprobe(cls, ffprobe_name):
-    #        ffprobe_dict = {option.ffprobe_name: option for option in cls.options.values()}
-    #        if ffprobe_name in ffprobe_dict:
-    #            return ffprobe_dict[ffprobe_name]
-    #        else:
-    #            return None
-
     @classmethod
     def register_option(cls, option):
-        assert issubclass(option, IStreamOption)
+        assert issubclass(option, IOption)
         cls.options.update({option.__name__: option})
 
     @classmethod
@@ -152,11 +165,10 @@ class Codec(IStreamOption):
     ffprobe_name = 'codec_name'
 
     def __init__(self, val: str):
-        super(Codec, self).__init__()
         """
         :param val: name of the codec
         """
-        self.value = val
+        super(Codec, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Codec, self).parse(stream_type, stream_number)
@@ -169,9 +181,13 @@ OptionFactory.register_option(Codec)
 class Fps(IStreamValueOption):
 
     def __init__(self, val: int):
-        super(Fps, self).__init__()
-        if val > 1 or val < 120:
-            self.value = val
+        try:
+            if val < 1 or val > 120:
+                val = None
+        except TypeError:
+            val = None
+
+        super(Fps, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
         super(Fps, self).parse(stream_type, stream_number)
@@ -181,19 +197,18 @@ class Fps(IStreamValueOption):
 OptionFactory.register_option(Fps)
 
 
-class Map(IStreamValueOption):
+class Map(IOption):
     """The map option."""
 
     def __init__(self, val: tuple):
-        super(Map, self).__init__()
         if len(val) > 2:
             raise ValueError('Tuple can only contain 2 ints')
         if not isinstance(val[0], int) or not isinstance(val[1], int):
             raise Exception
 
-        self.value = val
+        super(Map, self).__init__(val)
 
-    def parse(self, stream_type: str, stream_number: Union[None, int] = None):
+    def parse(self, *args, **kwargs):
         return ['-map', f'{self.value[0]}:{self.value[1]}']
 
 
@@ -203,13 +218,17 @@ class Channels(IStreamValueOption):
     ffprobe_name = 'channels'
 
     def __init__(self, val: int):
-        super(Channels, self).__init__()
         """
 
         :param val: number of audio channels, from 1 to 12
         """
-        if str(val).isnumeric() and 13 > int(val) > 0:
-            self.value = val
+        try:
+            if 13 < val or val < 0:
+                val = None
+        except TypeError:
+            val = None
+
+        super(Channels, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Channels, self).parse(stream_type, stream_number)
@@ -227,12 +246,12 @@ class Language(MetadataOption):
     must_copy = True
 
     def __init__(self, val: str):
-        super(Language, self).__init__()
         """
 
         :param val: 3-letter language code
         """
-        self.value = languagecode.validate(val)
+        val = languagecode.validate(val)
+        super(Language, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Language, self).parse(stream_type, stream_number)
@@ -249,13 +268,16 @@ class Bitrate(IStreamOption):
     ffprobe_name = ''
 
     def __init__(self, val: int):
-        super(Bitrate, self).__init__()
         """
 
         :param val: bitrate, in thousands
         """
-        if str(val).isnumeric():
-            self.value = int(val)
+        try:
+            val = int(val)
+        except ValueError:
+            val = None
+
+        super(Bitrate, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Bitrate, self).parse(stream_type, stream_number)
@@ -297,12 +319,13 @@ class Crf(EncoderOption):
     incompatible_with = [Bitrate]
 
     def __init__(self, val: int):
-        super(Crf, self).__init__()
         try:
-            if 51 > val > 0:
-                self.value = val
+            if val > 51 or val < 0:
+                val = None
         except TypeError:
-            pass
+            val = None
+
+        super(Crf, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
         super(Crf, self).parse(stream_type, stream_number)
@@ -317,12 +340,11 @@ class PixFmt(IStreamOption):
     name = 'pix_fmt'
 
     def __init__(self, val: str):
-        super(PixFmt, self).__init__()
         """
 
         :param val: pix format see pix_fmt in ffmpeg documentation
         """
-        self.value = val
+        super(PixFmt, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(PixFmt, self).parse(stream_type, stream_number)
@@ -406,9 +428,11 @@ class Height(IStreamValueOption):
     name = 'height'
 
     def __init__(self, val):
-        super(Height, self).__init__()
-        if str(val).isnumeric():
-            self.value = val
+        try:
+            val = int(val)
+        except ValueError:
+            val = None
+        super(Height, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         return []
@@ -421,9 +445,12 @@ class Width(IStreamValueOption):
     name = 'width'
 
     def __init__(self, val):
-        super(Width, self).__init__()
-        if str(val).isnumeric():
-            self.value = int(val)
+        try:
+            val = int(val)
+        except ValueError:
+            val = None
+
+        super(Width, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         return []
@@ -436,12 +463,13 @@ class Level(IStreamValueOption):
     name = 'level'
 
     def __init__(self, val):
-        super(Level, self).__init__()
         try:
             if float(val) > 0:
-                self.value = float(val)
+                val = float(val)
         except:
             pass
+
+        super(Level, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Level, self).parse(stream_type, stream_number)
@@ -455,8 +483,7 @@ class Profile(IStreamOption):
     name = 'profile'
 
     def __init__(self, val):
-        super(Profile, self).__init__()
-        self.value = val
+        super(Profile, self).__init__(val)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         super(Profile, self).parse(stream_type, stream_number)
@@ -512,21 +539,6 @@ class Scale(Filters):
         return f'scale=w={self.w}:h={self.h}'
 
 
-class Deblock(Filters):
-
-    def __init__(self, **kwargs):
-        k = list(zip(kwargs.keys(), kwargs.values()))
-        a = []
-        for t in k:
-            a.append('='.join([str(t[0]), str(t[1])]))
-
-        self.value = ':'.join(a)
-
-    @property
-    def filter(self):
-        return f'deblock={self.value}'
-
-
 class UnsupportedStreamType(Exception):
     pass
 
@@ -545,14 +557,14 @@ class Options(object):
     def options(self):
         return self._options
 
-    @options.setter
-    def options(self, opt):
-        if issubclass(opt.__class__, IStreamOption) and opt.value is not None:
-            self._options.update({opt.__class__.__name__: opt})
-        else:
-            log.debug('Option %s was rejected because of None value', str(opt))
+    def add_options(self, *options):
+        for opt in options:
+            if issubclass(opt.__class__, IOption) and opt.value is not None:
+                self._options.update({opt.__class__.__name__: opt})
+            else:
+                log.debug('Option %s was rejected because of None value', str(opt))
 
-    def __getitem__(self, opt):
+    def get_option(self, opt):
         if isinstance(opt, str):
             return self.options.get(opt, None)
         try:
@@ -567,7 +579,7 @@ class Options(object):
         return None
 
     def __delitem__(self, key):
-        option = self[key]
+        option = self.get_option(key)
         if option:
             del self.options[option.__class__.__name__]
 
@@ -575,13 +587,24 @@ class Options(object):
         for opt_name, opt_value in self.options.items():
             yield opt_name, opt_value
 
+    def __eq__(self, other):
+        return Counter(self.options) == Counter(other.options)
+
 
 if __name__ == '__main__':
+    a = Index(1)
+    b = Index(3)
+    print(a==b)
+
+
     c = Channels(2)
-    codec = Codec('h264')
+    b1 = Bitrate(512)
+    b2 = Bitrate(512)
+    print(b1 == c)
     o = Options()
-    o.options = c
-    o.options = codec
+
+    o.add_options(c, b2)
+    print(b1 in o.options.values())
 
     del o[c]
 

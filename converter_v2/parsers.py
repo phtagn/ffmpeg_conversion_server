@@ -14,14 +14,22 @@ class FFprobeParser(object):
         self._streams = output['streams']
         self._format = output['format']
 
-
     @property
     def streams(self):
         return self._streams
 
     @property
     def format(self):
-        return self._format['format_name'].lower()
+        fmt = self._format['format_name'].lower()
+        if 'matroska' in fmt:
+            return 'matroska'
+        elif 'mp4' in fmt:
+            return 'mp4'
+        else:
+            return fmt
+
+    def index(self, idx):
+        return self.streams[idx].get('index', None)
 
     def pix_fmt(self, index) -> PixFmt:
         return PixFmt(self.streams[index].get('pix_fmt', ''))
@@ -33,7 +41,7 @@ class FFprobeParser(object):
         else:
             br = int(self.streams[index]['tags'].get('BPS', 0))
 
-        return Bitrate(int(br/1000))
+        return Bitrate(int(br / 1000))
 
     def codec(self, index) -> Codec:
         return Codec(self.streams[index].get('codec_name', ''))

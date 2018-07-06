@@ -1,6 +1,6 @@
 import copy
 from typing import Union, Optional, List
-
+from collections import Counter
 from converter_v2.encoders import SubtitleCopy
 from converter_v2.streamoptions import Disposition
 from converter_v2.streams import AudioStream, VideoStream, SubtitleStream, StreamFactory, Stream, Streams
@@ -13,108 +13,57 @@ log = logging.getLogger(__name__)
 class Container(object):
     supported_formats = ['mp4', 'matroska']
 
-    def __init__(self, fmt):
-        if fmt in self.supported_formats:
-            self.format = fmt
-            self._streams = Streams()
-
+    def __init__(self, fmt, allow_identical=False):
+        self.format = fmt
+        self._audio_streams = {}
+        self._video_streams = {}
+        self._subtitle_streams = {}
+        self._streams = {}
+        self.allow_identical = allow_identical
+        self._audio_counter = 0
+        self._video_counter = 0
+        self._subtitle_counter = 0
+        self.stream_counter = 0
+    def add_stream(self, stream: Union[VideoStream, AudioStream, SubtitleStream]):
+        if isinstance(stream, VideoStream):
+            self._video_streams.update(stream)
+        elif isinstance(stream, AudioStream):
+            self._audio_streams.append(stream)
+        elif isinstance(stream, SubtitleStream):
+            self._subtitle_streams.append(stream)
         else:
-            raise Exception('Format %s not supported', fmt)
-
-    def add_stream(self, stream: Union[AudioStream, VideoStream, SubtitleStream],
-                   stream_number: Optional[int] = 0) -> int:
-        """
-        Add a stream to the list of streams in the Container. Streams can be with a specified stream
-        number, or the method will insert at the next available stream number.
-        :param stream: A concrete instance of Stream (VideoStream, AudioStream or SubtitleStream)
-        :param stream_number: optional, insert the stream with the specified stream number
-        :return: the stream number where the stream was inserted
-        """
-        assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
-        if stream_number:
-            sn = stream_number
-        else:
-            sn = len(self._streams)
-            sn += 1 if sn > 0 else 0
-        if stream_number in self._streams.keys():
-            log.info('Replacing stream %s', stream_number)
-
-        self._streams.update({sn: stream})
-        return sn
+            raise TypeError('Streams can only be one of VideoStream, AudioStream and SubtitleStream')
 
     @property
-    def audio_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, AudioStream)}
+    def video(self):
+        return self._video_streams
 
     @property
-    def subtitle_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, SubtitleStream)}
+    def audio(self):
+        return self._audio_streams
 
     @property
-    def video_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, VideoStream)}
+    def subtitle(self):
+        return self._subtitle_streams
 
     @property
     def streams(self):
-        return self._streams
+        return [*self._video_streams, *self._audio_streams, *self._subtitle_streams]
 
-    def get_stream(self, index) -> Optional[Union[VideoStream, AudioStream, SubtitleCopy]]:
-        """
-        Return the stream at the index, or None of the stream does not exist.
-        :param index: int, the index of the stream
-        :return: Stream
-        """
-        if index in self._streams:
-            return self._streams.get(index, None)
+    def __iter__(self):
+        for s in self.streams:
+            yield s
 
-    def remove_matching_streams(self, *streams: Union[VideoStream, AudioStream, SubtitleStream]):
-        """
-        Removes stream that matches any of the streams specified in *streams. There is no renumbering.
-        :param streams:  AudioStream, VideoStream or SubtitleStream
-        :return: None
-        """
-        newstreams = self._streams.copy()
-        for k, v in self._streams.items():
-            for sfilter in streams:
-                if isinstance(v, type(sfilter)) and v != sfilter:
-                    del newstreams[k]
-
-        self._streams = newstreams
-
-    def keep_matching_streams(self, *streams: Union[VideoStream, AudioStream, SubtitleStream]):
-        """
-        Removes all streams that do not match the condition. There is no renumbering.
-        :param streams: VideoStream, AudioStream or SubtitleStream
-        :return: None
-        """
-        newstreams = {}
-        for k, v in self._streams.items():
-            for sfilter in streams:
-                if isinstance(v, type(sfilter)):
-                    if v == sfilter:
-                        newstreams.update({k: v})
-                else:
-                    newstreams.update({k: v})
-
-        self._streams = newstreams
+    def __len__(self):
+        return len(self.streams)
 
     def __eq__(self, other):
-        if isinstance(other, Container):
-            if len(self.streams) != len(other.streams):
-                return False
+        if not isinstance(other, Container):
+            return False
 
-            for idx, stream in self.video_streams.items():
-                if other.video_streams[idx] != stream:
-                    return False
-
-            for idx, stream in self.audio_streams.items():
-                if other.audio_streams[idx] != stream:
-                    return False
-
-            for idx, stream in self.subtitle_streams.items():
-                if other.subtitle_streams[idx] != stream:
-                    return False
-
+        if (Counter(self.video) == Counter(other.video) and
+                Counter(self.audio) == Counter(other.audio) and
+                Counter(self.subtitle) == Counter(other.subtitle) and self.format == other.format):
             return True
 
         return False
@@ -125,12 +74,7 @@ class Container(object):
         ff = ffmpeg.FFMpeg(ffmpegpath, ffprobepath)
         parser = ff.probe(filepath)
 
-        if 'matroska' in parser.format:
-            self.format = Container('matroska')
-        elif 'mp4' in parser.format:
-            self.format = Container('mp4')
-        else:
-            self.format = Container(parser.format)
+        self.format = Container(parser.format)
 
         for idx in range(len(parser.streams)):
 
@@ -232,10 +176,10 @@ class LinkedContainer(object):
         for stream_type in [self.video_stream_pairs, self.audio_stream_pairs, self.subtitle_stream_pairs]:
             k = 0
             for (_, _,), (_, stream) in stream_type:
-                disp_option = stream.get_option_by_type(Disposition)
+                disp_option = stream.options.get_option(Disposition)
                 if disp_option:
                     thedisposition = disp_option.value
-                    thedisposition['default'] = 1 if k == 0 else 0
+                    thedisposition['default'] = 1 if k == 0 else 0  # FIX THIS
                     stream.replace_options(Disposition(thedisposition))
                 else:
                     stream.add_option(Disposition({'default': 1 if k == 0 else 0}))

@@ -115,7 +115,7 @@ class Processor(object):
         # Second, add the audio tracks that we need, without duplication
         for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:
             for idx, audio_stream in self.source_container.audio_streams.items():
-                aud = AudioStream(Codec(force_track), audio_stream.get_option_by_type(Language))
+                aud = AudioStream(Codec(force_track), audio_stream.options.get_option(Language))
                 linked_container._add_audio_pair(((idx, audio_stream), aud))
 
         if logging.getLogger().getEffectiveLevel() == logging.DEBUG:

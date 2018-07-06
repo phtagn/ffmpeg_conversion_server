@@ -14,65 +14,19 @@ class Stream(ABC):
     supported_options = []
     multiple = []
 
-    def __init__(self, *options: IStreamOption, allow_multiple=False):
+    def __init__(self, allow_multiple=False):
         self._options = Options(allow_multiple=allow_multiple)
-        self.add_option(*options)
 
     def add_option(self, *options):
         """Add options to the options pool. Reject options if they are not supported or if the value is None.
         """
         for opt in options:
             if type(opt) in self.supported_options:
-                self._options = opt
+                self._options.add_options(opt)
 
     @property
     def options(self):
         return self._options
-
-    def replace_options(self, *options):
-        for opt in options:
-            assert isinstance(opt, IStreamOption)
-            if opt.__class__.__name__ in self.options:
-                del self.options[opt.__class__.__name__]
-                self.add_option(opt)
-
-    def get_option_by_name(self, name):
-        return self.options.get(name, None)
-
-    def get_option_by_type(self, option) -> Union[IStreamOption, None]:
-        # assert isinstance(option, IStreamOption)
-        val = None
-        try:
-            val = self.options.options[option.__name__]
-        except KeyError:
-            pass
-        try:
-            val = self.options.options[option.__class__.__name__]
-        except KeyError:
-            pass
-
-        return val
-
-    def remove_option(self, *options: IStreamOption):
-        for option in options:
-            for k, opt in self.options.options:
-                if opt == option:
-                    del self.options[k]
-
-    def strict_eq(self, other):
-        r = False
-        if isinstance(other, type(self)):
-            for name, opt in self.options.options.items():
-                if other.options.get_option(name):
-                    if other.options[name] == opt:
-                        r = True
-                    else:
-                        r = False
-                        break
-                else:
-                    r = False
-                    break
-        return r
 
     def __eq__(self, other):
         """Compares streams by comparing the value of options
@@ -80,29 +34,25 @@ class Stream(ABC):
         assumed and the comparison will return True. This is a design decision
         so that when building streams from templates, you don't have to specify every single option
         present in a source stream built from a ffprobe."""
-        r = False
-        if isinstance(other, type(self)):
-            for name, opt in self.options.items():
-                if other.get_option_by_name(name):
-                    if other.options[name] == opt:
-                        r = True
-                    else:
-                        r = False
-                        break
-                else:
-                    r = True
-        return r
+
+        if not isinstance(other, type(self)):
+            return False
+
+        return self.options == other.options
 
     def __copy__(self):
         new = type(self)()
-        for opt in self.options.values():
+        for _, opt in self.options:
             newopt = copy.copy(opt)
             new.add_option(newopt)
         return new
 
     def __str__(self):
-        output = {k: self.options[k].value for k in self.options}
+        output = {name: opt.value for name, opt in self.options}
         return str(output)
+
+    def __hash__(self):
+        return hash(str(self))
 
 
 class StreamFactory(object):
@@ -131,6 +81,8 @@ class SubtitleStream(Stream):
 
 
 class Streams(object):
+    """A collection object for streams. Handles sorting them in their different categories"""
+
     def __init__(self, allow_identical=False):
         self._audio_streams = []
         self._video_streams = []
@@ -142,57 +94,71 @@ class Streams(object):
             self._video_streams.append(stream)
         elif isinstance(stream, AudioStream):
             self._audio_streams.append(stream)
-        elif isinstance(stream, SubtitleStream)
+        elif isinstance(stream, SubtitleStream):
             self._subtitle_streams.append(stream)
+        else:
+            raise TypeError('Streams can only be one of VideoStream, AudioStream and SubtitleStream')
 
     @property
-    def video_streams(self):
+    def video(self):
         return self._video_streams
 
     @property
-    def audio_streams(self):
+    def audio(self):
         return self._audio_streams
 
     @property
-    def subtitle_streams(self):
+    def subtitle(self):
         return self._subtitle_streams
 
     @property
     def streams(self):
         return [*self._video_streams, *self._audio_streams, *self._subtitle_streams]
 
+    def __iter__(self):
+        for s in self.streams:
+            yield s
+
     def __len__(self):
         return len(self.streams)
 
+    def __eq__(self, other):
+        if not isinstance(other, Streams):
+            return False
+
+        if (Counter(self.video) == Counter(other.video) and
+                Counter(self.audio) == Counter(other.audio) and
+                Counter(self.subtitle) == Counter(other.subtitle)):
+            return True
+
+        return False
+
+
 
 if __name__ == '__main__':
-    from converter_v2.templates import StreamTemplateFactory
 
-    from converter_v2.containers import ContainerFactory
 
-    encoder = CodecFactory.get_codec_by_name('vorbis')
-    laptop = '/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv'
-    desktop = "/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv"
-    ctn = ContainerFactory.container_from_ffprobe(desktop,
-                                                  '/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
+    s1 = Streams()
+    s2 = Streams()
 
-    vst = StreamTemplateFactory.get_stream_template(ctn.video_streams[0], Codec('h264'), Codec('hevc'), Height('600'),
-                                                    Width(1920), Channels(2), Bitrate(2000))
+    v1 = VideoStream()
+    v2 = VideoStream()
+    v3 = VideoStream()
+    v4 = AudioStream()
 
-    ost = StreamTemplateFactory.get_stream_template(AudioStream(), Channels(8), Codec('ac3'))
-    sst = StreamTemplateFactory.get_stream_template(SubtitleStream(), Codec('mov_text'))
+    v1.add_option(Codec('h264'), Bitrate(512))
+    v2.add_option(Bitrate(512), Codec('h264'))
 
-    tctn = ContainerFactory.container_from_template(ctn, 'mp4', [vst, ost, sst])
-    vs = VideoStream(Codec('Vorbis'))
+    v3.add_option(Codec('h264'), Bitrate(512))
+    v4.add_option(Bitrate(512), Codec('h264'))
+    print(v1==v2)
 
-    tctn.add_stream_pairs(((0, ctn.get_stream(0)), vs))
-    tctn.fix_disposition()
+    s1.add_stream(v1)
+    s1.add_stream(v2)
 
-    toto = AudioStream(Bsf('p'))
+    s2.add_stream(v4)
+    s2.add_stream(v3)
 
-    tctn.remove_matching_stream_pairs(toto)
-
-    ob = OptionBuilder()
-    ob.build_options(tctn, {'aac': 'faac'})
-
-    print('yeah')
+    for k in s1.video:
+        print(k)
+    print(s1 == s2)
