@@ -11,3 +11,7 @@ class Templates(object):
 
     def __init__(self):
         self.options = {}
+
+    def add_template(self, codec, options: Options):
+        self.options.update({codec: options})
+

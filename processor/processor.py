@@ -54,12 +54,35 @@ class Processor(object):
 
         self.target = target
 
+    def get_defaults(self):
+        defaults = {}
+        for k in ['audio', 'video', 'subtitle']:
+            _options = Options()
+            try:
+                _codec = self.config['Containers'][self.target][k]['accepted_track_formats'][0]
+            except IndexError:
+                log.critical('There are no default options in accepted_track_formats')
+                raise Exception('No default options')
+
+            if _codec in self.config['StreamFormats']:
+                for opt_name, opt_value in self.config['StreamFormats'][_codec].items():
+                    option = OptionFactory.get_option(opt_name)
+                    if option:
+                        if isinstance(opt_value, list) and len(opt_value) > 0:
+                            _options.add_option(option(opt_value[0]))
+                        else:
+                            _options.add_option(option(opt_value))
+
+            if _options:
+                defaults.update({k: (Codec(_codec), _options)})
+
+        return defaults
+
     def generate_stream_templates(self):
 
         languages = []
         templates = {}
         _codec = None
-
 
         for k in ['audio', 'video', 'subtitle']:
             if k == 'audio':
@@ -92,7 +115,7 @@ class Processor(object):
         return templates
 
     def generate_encoder_options(self):
-        _encoders = []
+        _encoders = {}
         _options = None
         _enc = None
 
@@ -104,14 +127,17 @@ class Processor(object):
                     _options.add_option(_option(v))
 
             if _options:
-                _encoders.append(_options)
+                _encoders.update({_enc.lower(): _options})
 
         return _encoders
 
     def process_container(self):
 
-        ob = OptionBuilder(self.source_container, self.generate_stream_templates())
+        ob = OptionBuilder(self.source_container, self.generate_stream_templates(), self.get_defaults(),
+                           self.generate_encoder_options())
+        ob.generate_mapping()
         ob.generate_options()
+        print(True)
         return ob
 
     def convert(self, container, outputfile):
@@ -125,5 +151,5 @@ if __name__ == '__main__':
     desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, desktop, 'mp4')
+    p = Processor(cfgmgr.cfg, laptop, 'mp4')
     p.process_container()

@@ -16,18 +16,17 @@ class _FFMpegCodec(ABC):
     codec_type = ''
     incompatible_options = {Crf.__name__: Bsf.__name__}
 
-    def __init__(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
-        self.options = []
-        self.add_option(*options)
+    def __init__(self):
+        self.options = Options()
 
     def add_option(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
 
         for option in options:
             assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
-            if type(option) in self.__class__.supported_options and option.value is not None:
-                self.options.append(option)
+            if type(option) in self.__class__.supported_options:
+                self.options.add_option(options)
             else:
-                log.error('Option "%s" with "value" %s rejected by encoder "%s"', option.__class__.__name__,
+                log.error('Option "%s" with "value" %s is not supported by encoder "%s"', option.__class__.__name__,
                           option.value,
                           self.__class__.__name__)
 
@@ -49,7 +48,7 @@ class _FFMpegCodec(ABC):
 
 class _VideoCodec(_FFMpegCodec):
     supported_options = _FFMpegCodec.supported_options.copy()
-    supported_options.extend([Disposition, Bsf])
+    supported_options.extend([Bitrate, Disposition, Bsf])
     codec_type = 'video'
 
     def __init__(self, *options):

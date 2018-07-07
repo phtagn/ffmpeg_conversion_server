@@ -61,14 +61,17 @@ class Stream(ABC):
 
 class VideoStream(Stream):
     supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile]
+    kind = 'video'
 
 
 class AudioStream(Stream):
     supported_options = [Codec, Channels, Language, Disposition, Bitrate]
+    kind = 'audio'
 
 
 class SubtitleStream(Stream):
     supported_options = [Codec, Language, Disposition]
+    kind = 'subtitle'
 
 
 class StreamFactory(object):

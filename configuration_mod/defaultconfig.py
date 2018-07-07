@@ -52,13 +52,7 @@ for fmt_name, fmt in StreamFormatFactory.formats.items():
                     audiostreams.update({fmt.__name__[:-6].lower(): optdict})
                 elif issubclass(fmt, SubtitleStream):
                     subtitlestreams.update({fmt.__name__[:-6].lower(): optdict})
-    if len(fmt.encoders) > 2:
-        if issubclass(fmt, VideoStream):
-            videostreams[fmt.__name__[:-6].lower()].update({'encoders': 'string(default=None)'})
-        elif issubclass(fmt, AudioStream):
-            audiostreams[fmt.__name__[:-6].lower()].update({'encoders': 'string(default=None)'})
-        elif issubclass(fmt, SubtitleStream):
-            subtitlestreams[fmt.__name__[:-6].lower()].update({'encoders': 'string(default=None)'})
+
 
 streams = {**videostreams, **audiostreams, **subtitlestreams}
 
