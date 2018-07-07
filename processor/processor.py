@@ -1,8 +1,7 @@
 import configuration
-from converter_v2.streams import VideoStream, AudioStream, SubtitleStream
+from converter_v2.streams import VideoStream, AudioStream, SubtitleStream, StreamFactory
 from converter_v2.optionbuilder import OptionBuilder
-from converter_v2.containers import ContainerFactory, LinkedContainer
-from converter_v2.templates import StreamTemplateFactory, Templates
+from converter_v2.containers import ContainerFactory
 from converter_v2.streamoptions import *
 import converter_v2.ffmpeg
 
@@ -55,101 +54,68 @@ class Processor(object):
 
         self.target = target
 
-    def _build_templates(self):
+    def generate_stream_templates(self):
 
-        templates = Templates()
+        languages = []
+        templates = {}
+        _codec = None
+
+
         for k in ['audio', 'video', 'subtitle']:
             if k == 'audio':
-                stream = AudioStream()
+                languages = [Language(lng) for lng in self.config['Languages']['audio']]
             elif k == 'video':
-                stream = VideoStream()
+                languages = []
             elif k == 'subtitle':
-                stream = SubtitleStream()
+                languages = [Language(lng) for lng in self.config['Languages']['subtitle']]
 
-            for codec in self.config['Containers'][self.target][k]['accepted_track_formats']:
-                template = StreamTemplateFactory.get_stream_template(stream, Codec(codec))
-                if codec in self.config['StreamFormats']:
+            for _codec in self.config['Containers'][self.target][k]['accepted_track_formats']:
 
-                    for opt_name, opt_value in self.config['StreamFormats'][codec].items():
-                        if OptionFactory.get_option(opt_name):
+                _options = Options()
+
+                if _codec in self.config['StreamFormats']:
+
+                    for opt_name, opt_value in self.config['StreamFormats'][_codec].items():
+                        option = OptionFactory.get_option(opt_name)
+                        if option:
                             if isinstance(opt_value, list):
                                 for v in opt_value:
-                                    template.add_option(OptionFactory.get_option(opt_name)(v))
+                                    _options.add_option(option(v))
                             else:
-                                template.add_option(OptionFactory.get_option(opt_name)(opt_value))
+                                _options.add_option(option(opt_value))
 
-                templates.add_template(template)
+                if _options:
+                    for lng in languages:
+                        _options.add_option(lng)
+                    templates.update({Codec(_codec): _options})
 
         return templates
 
-    def process_languages(self):
-        haslang = False
+    def generate_encoder_options(self):
+        _encoders = []
+        _options = None
+        _enc = None
 
-        l = []
-        # This is necessary when the audio stream is not properly tagged. If we just match, there may be no audio in the
-        # end, which is probably not what the user wants.
-        for language in self.config['Languages']['audio']:
-            l.append(AudioStream(Language(language)))
-            for idx, stream in self.source_container.audio_streams.items():
-                if stream.options.get_option(Language):
-                    if stream.options.get_option(Language).value == language:
-                        haslang = True
-                        break
+        for _enc in self.config['Encoders']:
+            _options = Options()
+            for k, v in self.config['Encoders'][_enc].items():
+                _option = OptionFactory.get_option(k)
+                if _option:
+                    _options.add_option(_option(v))
 
-        if haslang:
-            self.source_container.keep_matching_streams(*l)
+            if _options:
+                _encoders.append(_options)
 
-        l = []
-        for language in self.config['Languages']['subtitle']:
-            l.append(SubtitleStream(Language(language)))
-        self.source_container.keep_matching_streams(*l)
+        return _encoders
 
     def process_container(self):
-        # First, remove languages that we do not want from audio and video
-        self.process_languages()
 
-        templates = self._build_templates()
-        linked_container = LinkedContainer(self.target)
-        linked_container.from_templates(self.source_container, templates)
-
-        # Second, add the audio tracks that we need, without duplication
-        for force_track in self.config['Containers'][self.target]['audio']['force_create_tracks']:
-            for idx, audio_stream in self.source_container.audio_streams.items():
-                aud = AudioStream(Codec(force_track), audio_stream.options.get_option(Language))
-                linked_container._add_audio_pair(((idx, audio_stream), aud))
-
-        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
-            log.debug('Analysis result:\n %s ', str(linked_container))
-
-        return linked_container
+        ob = OptionBuilder(self.source_container, self.generate_stream_templates())
+        ob.generate_options()
+        return ob
 
     def convert(self, container, outputfile):
-        assert isinstance(container, LinkedContainer)
-        ffmpeg = converter_v2.ffmpeg.FFMpeg(self.ffmpeg_path, self.ffprobe_path)
-        ob = OptionBuilder()
-        preferred_encoders = {}
-
-        for fmt in self.config['StreamFormats']:
-            try:
-
-                preferred_encoders.update({fmt: self.config['StreamFormats'][fmt]['encoders']})
-            except KeyError:
-                continue
-
-        encoders = []
-        for enc in self.config['Encoders']:
-            encoder = CodecFactory.get_codec_by_name(enc)
-            for opt_name, opt_value in self.config['Encoders'][enc].items():
-                if OptionFactory.get_option(opt_name):
-                    encoder.add_option(OptionFactory.get_option(opt_name)(opt_value))
-            encoders.append(encoder)
-
-        options = ob.build_options(container, preferred_encoders, *encoders)
-        if options:
-            for timecode in ffmpeg.convert(self.infile, outputfile, options):
-                print(timecode)
-        else:
-            raise Exception('No option were generated, cannot convert')
+        pass
 
 
 if __name__ == '__main__':
@@ -160,6 +126,4 @@ if __name__ == '__main__':
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
     p = Processor(cfgmgr.cfg, desktop, 'mp4')
-    tctn = p.process_container()
-
-    p.convert(tctn, '/Users/Jon/Downloads/test.mp4')
+    p.process_container()

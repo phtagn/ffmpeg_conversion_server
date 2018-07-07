@@ -1,5 +1,4 @@
-from converter_v2.encoders import *
-from converter_v2.optionbuilder import OptionBuilder
+from abc import ABC
 from converter_v2.streamoptions import *
 import logging
 import copy
@@ -9,20 +8,26 @@ log = logging.getLogger(__name__)
 
 class Stream(ABC):
     """
-    Generic stream class, it is not to be instantiated directly. Use concrete classes VideoStream, AudioStream and SubtitleStream
+    Generic stream class, it is not to be instantiated directly. Use concrete classes VideoStream, AudioStream and
+    SubtitleStream
     """
     supported_options = []
     multiple = []
 
-    def __init__(self, allow_multiple=False):
-        self._options = Options(allow_multiple=allow_multiple)
+    def __init__(self, codec: Codec):
+        assert isinstance(codec, Codec)
+        self._options = Options()
+        self.codec = codec
 
-    def add_option(self, *options):
-        """Add options to the options pool. Reject options if they are not supported or if the value is None.
+    def add_options(self, *_options):
+        """Add options to the options pool. Reject options if they are not supported.
         """
-        for opt in options:
-            if type(opt) in self.supported_options:
-                self._options.add_options(opt)
+        for _opt in _options:
+            if type(_opt) in self.supported_options and _opt.value is not None:
+                self._options.add_option(_opt)
+            else:
+                log.warning('Option %s was rejected because unsupported by %s', str(_opt),
+                            self.__class__.__name__)
 
     @property
     def options(self):
@@ -37,35 +42,21 @@ class Stream(ABC):
 
         if not isinstance(other, type(self)):
             return False
-
         return self.options == other.options
 
     def __copy__(self):
         new = type(self)()
-        for _, opt in self.options:
-            newopt = copy.copy(opt)
-            new.add_option(newopt)
+        for _opt in self.options:
+            newopt = copy.copy(_opt)
+            new.options.add_option(newopt)
         return new
 
     def __str__(self):
-        output = {name: opt.value for name, opt in self.options}
+        output = {_opt.__class.__name: _opt.value for _opt in self.options}
         return str(output)
 
     def __hash__(self):
-        return hash(str(self))
-
-
-class StreamFactory(object):
-
-    @classmethod
-    def get_stream_by_type(cls, stream: Stream) -> Stream:
-        assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
-        if isinstance(stream, VideoStream):
-            return VideoStream()
-        elif isinstance(stream, AudioStream):
-            return AudioStream()
-        elif isinstance(stream, SubtitleStream):
-            return SubtitleStream()
+        return hash(self.options)
 
 
 class VideoStream(Stream):
@@ -80,85 +71,24 @@ class SubtitleStream(Stream):
     supported_options = [Codec, Language, Disposition]
 
 
-class Streams(object):
-    """A collection object for streams. Handles sorting them in their different categories"""
+class StreamFactory(object):
 
-    def __init__(self, allow_identical=False):
-        self._audio_streams = []
-        self._video_streams = []
-        self._subtitle_streams = []
-        self.allow_identical = allow_identical
-
-    def add_stream(self, stream: Union[VideoStream, AudioStream, SubtitleStream]):
+    @classmethod
+    def get_stream_by_type(cls, stream: Stream, codec) -> Stream:
+        assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
         if isinstance(stream, VideoStream):
-            self._video_streams.append(stream)
+            return VideoStream(codec)
         elif isinstance(stream, AudioStream):
-            self._audio_streams.append(stream)
+            return AudioStream(codec)
         elif isinstance(stream, SubtitleStream):
-            self._subtitle_streams.append(stream)
-        else:
-            raise TypeError('Streams can only be one of VideoStream, AudioStream and SubtitleStream')
+            return SubtitleStream(codec)
 
-    @property
-    def video(self):
-        return self._video_streams
-
-    @property
-    def audio(self):
-        return self._audio_streams
-
-    @property
-    def subtitle(self):
-        return self._subtitle_streams
-
-    @property
-    def streams(self):
-        return [*self._video_streams, *self._audio_streams, *self._subtitle_streams]
-
-    def __iter__(self):
-        for s in self.streams:
-            yield s
-
-    def __len__(self):
-        return len(self.streams)
-
-    def __eq__(self, other):
-        if not isinstance(other, Streams):
-            return False
-
-        if (Counter(self.video) == Counter(other.video) and
-                Counter(self.audio) == Counter(other.audio) and
-                Counter(self.subtitle) == Counter(other.subtitle)):
-            return True
-
-        return False
-
-
-
-if __name__ == '__main__':
-
-
-    s1 = Streams()
-    s2 = Streams()
-
-    v1 = VideoStream()
-    v2 = VideoStream()
-    v3 = VideoStream()
-    v4 = AudioStream()
-
-    v1.add_option(Codec('h264'), Bitrate(512))
-    v2.add_option(Bitrate(512), Codec('h264'))
-
-    v3.add_option(Codec('h264'), Bitrate(512))
-    v4.add_option(Bitrate(512), Codec('h264'))
-    print(v1==v2)
-
-    s1.add_stream(v1)
-    s1.add_stream(v2)
-
-    s2.add_stream(v4)
-    s2.add_stream(v3)
-
-    for k in s1.video:
-        print(k)
-    print(s1 == s2)
+    @classmethod
+    def get_stream_by_name(cls, name, codec) -> Stream:
+        assert name in ['audio', 'video', 'subtitle']
+        if name == 'video':
+            return VideoStream(codec)
+        elif name == 'audio':
+            return AudioStream(codec)
+        elif name == 'subtitle':
+            return SubtitleStream(codec)
