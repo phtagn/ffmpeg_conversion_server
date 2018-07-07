@@ -12,9 +12,14 @@ from post_processor import PostProcessor
 from readSettings import ReadSettings
 from tvdb_mp4 import Tvdb_mp4
 
-fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log')})
-log = logging.getLogger("SickbeardPostConversion")
+#fileConfig(os.path.join(os.path.dirname(sys.argv[0]), 'logging.ini'), defaults={'logfilename': os.path.join(os.path.dirname(sys.argv[0]), 'info.log')})
+#log = logging.getLogger("SickbeardPostConversion")
 
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+log.addHandler(sh)
 log.info("Sickbeard extra script post processing started.")
 
 settings = ReadSettings(os.path.dirname(sys.argv[0]), "autoProcess.ini")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import json
 import sys
-import xmlrpclib
+import xmlrpc.client as xmlrpclib
 
 """ This client connects to the mp4automator server to submit a conversion job. Note that the file being converted is 
 NOT sent across. As a consequence, both the client and the server must have access to the file.
