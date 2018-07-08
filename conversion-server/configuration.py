@@ -5,7 +5,8 @@ import validate
 import logging
 from configuration_mod.defaultconfig import configspec
 import os
-import languagecode
+from helpers import languagecode
+
 
 log = logging.getLogger(__name__)
 

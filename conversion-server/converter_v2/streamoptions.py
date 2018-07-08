@@ -1,4 +1,4 @@
-import languagecode
+from helpers import languagecode
 import logging
 from abc import abstractmethod, ABCMeta
 from typing import Union
@@ -227,7 +227,6 @@ class Language(MetadataOption):
     """Language option, applies to audio and subtitle streams"""
     name = 'language'
     ffprobe_name = 'language'
-    must_copy = True
 
     def __init__(self, val: str):
         super(Language, self).__init__()
@@ -243,13 +242,28 @@ class Language(MetadataOption):
         return [f'-metadata:s:{self.stream_specifier}', f'language={self.value}']
 
     def __eq__(self, other):
-        assert isinstance(other, Language)
+        if not isinstance(other, Language):
+            return False
+
         if self.value == 'und' or other.value == 'und':
             return True
+        else:
+            return self.value == other.value
 
-        super(Language, self).__eq__(other)
 
 OptionFactory.register_option(Language)
+
+
+class Tag(EncoderOption):
+    name = 'tag'
+
+    def __init__(self, val):
+        super(Tag, self).__init__()
+        self.value = val
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
+        super(Tag, self).parse(stream_type, stream_number)
+        return [f'-tag:{self.stream_specifier}', f'{self.value}']
 
 
 class Bitrate(IStreamValueOption):
@@ -555,30 +569,41 @@ class UnsupportedOption(Exception):
 class Options(object):
 
     def __init__(self):
-        self._options = []
+        self.options = []
 
-    @property
-    def options(self):
-        return self._options
-
-    def add_option(self, opt):
+    def add_option(self, opt, unique=False):
 
         if issubclass(opt.__class__, IStreamOption) and opt.value is not None:
-            self._options.append(opt)
+            if not unique:
+                self.options.append(opt)
+            else:
+                opts = [o for o in self.options if o.__class__ != opt.__class__]
+                opts.append(opt)
+                self.options = opts[:]
         else:
             log.debug('Option %s was rejected because of None value', str(opt))
 
     def get_option(self, option):
 
-        for opt in self._options:
+        for opt in self.options:
             if opt.__class__ == option:
                 yield opt
+
+    def del_option(self, option):
+        for opt in self.options:
+            if opt.__class__ == option:
+                self.options.remove(opt)
+
+    def get_unique_option(self, option):
+        for opt in self.options:
+            if option == opt.__class__:
+                return opt
 
     def has_option(self, opt):
 
         o = opt if isclass(opt) else opt.__class__
 
-        if o in [option.__class__ for option in self._options]:
+        if o in [option.__class__ for option in self.options]:
             return True
         return False
 
@@ -589,7 +614,6 @@ class Options(object):
         incompatible_options = Options()
 
         for me_opt in self.options:
-            t = False
             default = None
             for o_opt in other.get_option(me_opt.__class__):
                 default = o_opt if not default else default
@@ -610,7 +634,7 @@ class Options(object):
         if not isinstance(other, Options):
             return False
 
-        for opt in other._options:
+        for opt in other.options:
             if not self.has_option(opt):
                 continue
             else:
@@ -618,10 +642,6 @@ class Options(object):
                     return False
 
         return True
-
-    def __iter__(self):
-        for opt in self.options:
-            yield opt
 
     def __eq__(self, other):
         return Counter(self.options) == Counter(other.options)

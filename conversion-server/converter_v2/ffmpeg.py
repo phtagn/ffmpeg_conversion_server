@@ -248,6 +248,7 @@ class FFMpeg(object):
         buf = ''
         total_output = ''
         pat = re.compile(r'time=([0-9.:]+) ')
+
         while True:
             if timeout:
                 signal.alarm(timeout)

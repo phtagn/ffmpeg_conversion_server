@@ -13,7 +13,7 @@ class Container(object):
     def __init__(self, fmt):
         if fmt in self.supported_formats:
             self.format = fmt
-            self._streams = {}
+            self.streams = {}
 
         else:
             raise Exception('Format %s not supported', fmt)
@@ -31,59 +31,13 @@ class Container(object):
         if stream_number:
             sn = stream_number
         else:
-            sn = len(self._streams)
+            sn = len(self.streams)
             sn += 1 if sn > 0 else 0
-        if stream_number in self._streams.keys():
+        if stream_number in self.streams.keys():
             log.info('Replacing stream %s', stream_number)
 
-        self._streams.update({sn: stream})
+        self.streams.update({sn: stream})
         return sn
-
-    @property
-    def audio_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, AudioStream)}
-
-    @property
-    def subtitle_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, SubtitleStream)}
-
-    @property
-    def video_streams(self):
-        return {k: v for k, v in self._streams.items() if isinstance(v, VideoStream)}
-
-    @property
-    def streams(self):
-        return self._streams
-
-    def get_stream(self, index) -> Optional[Union[VideoStream, AudioStream, SubtitleCopy]]:
-        """
-        Return the stream at the index, or None of the stream does not exist.
-        :param index: int, the index of the stream
-        :return: Stream
-        """
-        if index in self._streams:
-            return self._streams.get(index, None)
-
-    def __eq__(self, other):
-        if isinstance(other, Container):
-            if len(self.streams) != len(other.streams):
-                return False
-
-            for idx, stream in self.video_streams.items():
-                if other.video_streams[idx] != stream:
-                    return False
-
-            for idx, stream in self.audio_streams.items():
-                if other.audio_streams[idx] != stream:
-                    return False
-
-            for idx, stream in self.subtitle_streams.items():
-                if other.subtitle_streams[idx] != stream:
-                    return False
-
-            return True
-
-        return False
 
 
 class ContainerFactory(object):

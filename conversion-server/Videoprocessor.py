@@ -1,21 +1,14 @@
 import configuration
 import logging
-import os
 from transitions import Machine, State
 from processor import processor
 from fetchers.fetchers import FetchersFactory
 from taggers import tagger
 from helpers.helpers import breakdown
 import shutil
-import sys
+import os
 
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
-sh = logging.StreamHandler(sys.stdout)
-sh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-sh.setFormatter(formatter)
-log.addHandler(sh)
+logging.getLogger(__name__)
 
 
 class VideoProcessor(object):
@@ -62,8 +55,6 @@ class VideoProcessor(object):
         else:
             raise IOError(f'File {path} does not exist')
 
-        self.processor = processor.Processor(self.config, self.inputfile, self.target)
-
         self.tagging_info = tagging_info
 
         self.fh = FileHandler(copy_to=self.config['File'].get('copy_to'),
@@ -76,18 +67,17 @@ class VideoProcessor(object):
         else:
             outpath = breakdown(self.inputfile)['dir']
 
-        self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '.' + self.target)
+        self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '-working.' + self.target)
 
-        if self.full_work_path == self.inputfile:
-            self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '-working.' + self.target)
+        self.processor = processor.Processor(self.config, self.inputfile, self.full_work_path, self.target)
 
     def do_process(self):
         """
         Processes the sourcefile into a target container
         :return: None
         """
-        target_container = self.processor.process_container()
-        self.outputfile = self.processor.convert(self.full_work_path)
+        self.processor.process()
+        self.processor.convert()
 
     def do_tag(self):
         if self.tagging_info:
@@ -111,7 +101,7 @@ class VideoProcessor(object):
             else:
                 posterfile = None
 
-            t = tagger.TaggerFactory.get_tagger(self.container.format.format_name, tags, self.full_work_path,
+            t = tagger.TaggerFactory.get_tagger(self.target, tags, self.full_work_path,
                                                 artworkfile=posterfile)
             if t:
                 t.writetags()
@@ -212,7 +202,7 @@ class MachineFactory(object):
         states = ['rest']
 
         states.append(State(name='processed', on_enter=['do_process']))
-        # states.append(State(name='tagged', on_enter=['do_tag']))
+        states.append(State(name='tagged', on_enter=['do_tag']))
         states.append(State(name='postprocessed', on_enter=['do_postprocess']))
         states.append(State(name='deployed', on_enter=['do_deploy']))
         states.append(State(name='refreshed', on_enter=['do_refresh']))
@@ -234,7 +224,8 @@ if __name__ == '__main__':
     showid = 75978
     id_type = 'tvdb_id'
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
-    infile = '/Volumes/Downloads/Jumanji(1996).BluRay.VF.1080p.x265-JOYSTICK-/Jumanji(1996).BluRay.VF.1080p.x265-JOYSTICK-.mkv'
+    laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
+    desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     configname = 'defaults.ini'
     target = 'mp4'
     info = {'id': showid,
@@ -243,7 +234,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = MachineFactory.get(infile=infile, config=configname, target=target, tagging_info=tagging_info)
+    VP = MachineFactory.get(infile=desktop, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
 

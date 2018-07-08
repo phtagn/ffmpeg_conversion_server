@@ -24,7 +24,7 @@ class Stream(ABC):
         """
         for _opt in _options:
             if type(_opt) in self.supported_options and _opt.value is not None:
-                self._options.add_option(_opt)
+                self._options.add_option(_opt, unique=True)
             else:
                 log.warning('Option %s was rejected because unsupported by %s', str(_opt),
                             self.__class__.__name__)
@@ -42,17 +42,20 @@ class Stream(ABC):
 
         if not isinstance(other, type(self)):
             return False
-        return self.options == other.options
 
-    def __copy__(self):
-        new = type(self)()
-        for _opt in self.options:
-            newopt = copy.copy(_opt)
-            new.options.add_option(newopt)
-        return new
+        if self.codec != other.codec:
+            return False
+
+        for s_opt in self.options.options:
+            if not other.options.has_option(s_opt):
+                continue
+            if not self.options.contains_subset(other.options):
+                return False
+
+        return True
 
     def __str__(self):
-        output = {_opt.__class.__name: _opt.value for _opt in self.options}
+        output = {_opt.__class.__name: _opt.value for _opt in self.options.options}
         return str(output)
 
     def __hash__(self):

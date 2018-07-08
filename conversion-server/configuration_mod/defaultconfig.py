@@ -1,7 +1,7 @@
 # coding=utf-8
 from collections import OrderedDict
 from configobj import ConfigObj
-from converter_v2.encoders import CodecFactory, _VideoCodec, _AudioCodec, _SubtitleCodec
+from converter_v2.encoders import EncoderFactory, _VideoCodec, _AudioCodec, _SubtitleCodec
 from converter_v2.streamformats import *
 from converter_v2.streamoptions import EncoderOption
 
@@ -22,7 +22,7 @@ videocodecs = OrderedDict()
 audiocodecs = OrderedDict()
 subtitlecodecs = OrderedDict()
 
-for codec in CodecFactory.supported_codecs:
+for codec in EncoderFactory.supported_codecs:
     optdict = OrderedDict()
     for opt in codec.supported_options:
         if opt.__name__ in exposed_options and issubclass(opt, EncoderOption):
@@ -87,11 +87,13 @@ defaultconfig = {
         'mp4': {
             'video': {
                 'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
+                'default_format': 'string(default=hevc)',
                 'ignore_presets': 'boolean(default=True)'
             },
 
             'audio': {
                 'accepted_track_formats': 'force_list(default=list(aac, ac3))',
+                'default_format': 'string(default=aac)',
                 'audio_copy_original': 'boolean(default=False)',
                 'create_multiple_stereo_tracks': 'boolean(default=False)',
                 'force_create_tracks': 'force_list(default=None)',
@@ -100,6 +102,7 @@ defaultconfig = {
 
             'subtitle': {
                 'accepted_track_formats': 'force_list(default=list(mov_text))',
+                'default_format': 'string(default=mov_text)',
                 'ignore_presets': 'boolean(default=True)'
             },
 

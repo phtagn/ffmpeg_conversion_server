@@ -14,7 +14,6 @@ class _FFMpegCodec(ABC):
     ffmpeg_codec_name = None
     supported_options = [Map]
     codec_type = ''
-    incompatible_options = {Crf.__name__: Bsf.__name__}
 
     def __init__(self):
         self.options = Options()
@@ -24,7 +23,7 @@ class _FFMpegCodec(ABC):
         for option in options:
             assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
             if type(option) in self.__class__.supported_options:
-                self.options.add_option(options)
+                self.options.add_option(option)
             else:
                 log.error('Option "%s" with "value" %s is not supported by encoder "%s"', option.__class__.__name__,
                           option.value,
@@ -40,7 +39,7 @@ class _FFMpegCodec(ABC):
 
         ffmpeg_opt_list = [f'-c:{stream_type}:{stream_number}', self.ffmpeg_codec_name]
 
-        for option in self.options:
+        for option in self.options.options:
             ffmpeg_opt_list.extend(option.parse(stream_type=self.codec_type, stream_number=stream_number))
 
         return ffmpeg_opt_list
@@ -51,17 +50,11 @@ class _VideoCodec(_FFMpegCodec):
     supported_options.extend([Bitrate, Disposition, Bsf])
     codec_type = 'video'
 
-    def __init__(self, *options):
-        super(_VideoCodec, self).__init__(*options)
-
 
 class _AudioCodec(_FFMpegCodec):
     supported_options = _FFMpegCodec.supported_options.copy()
-    supported_options.extend([Channels, Language, Disposition, Bsf])
+    supported_options.extend([Bitrate, Channels, Language, Disposition, Bsf])
     codec_type = 'audio'
-
-    def __init__(self, *options):
-        super(_AudioCodec, self).__init__(*options)
 
 
 class _SubtitleCodec(_FFMpegCodec):
@@ -79,9 +72,6 @@ class _Copy(_FFMpegCodec):
     """
     codec_name = 'copy'
     ffmpeg_codec_name = 'copy'
-
-    def __init__(self, *options):
-        super(_Copy, self).__init__(*options)
 
 
 class VideoCopy(_Copy):
@@ -232,6 +222,9 @@ class H265(_VideoCodec):
     codec_name = 'hevc'
     ffmpeg_codec_name = 'libx265'
 
+    def __init__(self):
+        super(H265, self).__init__()
+        self.options.add_option(Tag('hvc1'))
 
 class HEVCQSV(H265):
     """
@@ -354,7 +347,7 @@ class DVDSub(_SubtitleCodec):
     ffmpeg_codec_name = 'dvdsub'
 
 
-class CodecFactory(object):
+class EncoderFactory(object):
     supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy, Vorbis, Aac, H264, Ac3]
 
     @classmethod
