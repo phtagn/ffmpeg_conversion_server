@@ -9,12 +9,12 @@
 
     groupmod -o -g "$PGID" abc
     usermod -o -u "$PUID" abc
-    git clone -b ${GITBRANCH} ${GITSERVER} /conversion-server
+    # git clone -b ${GITBRANCH} ${GITSERVER} /conversion-server
     cd /conversion-server && pip3 install -e .
 
 
     mkdir -p /var/log/server
     chown nobody:nogroup /var/log/server
-    chown abc:abc -R /server
+    chown abc:abc -R /conversion-server
 #    touch /config/removetoredoconf
 #fi

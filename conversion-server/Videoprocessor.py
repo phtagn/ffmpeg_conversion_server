@@ -234,7 +234,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = MachineFactory.get(infile=desktop, config=configname, target=target, tagging_info=tagging_info)
+    VP = MachineFactory.get(infile=laptop, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
 

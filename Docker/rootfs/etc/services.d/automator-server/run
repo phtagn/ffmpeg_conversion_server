@@ -1,2 +1,2 @@
 #!/usr/bin/with-contenv bash
-exec s6-setuidgid abc /usr/bin/python3 -m flask run
+exec s6-setuidgid abc flask run
