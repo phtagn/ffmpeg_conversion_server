@@ -1,0 +1,4 @@
+#!/bin/sh
+S6_LOGGING_SCRIPT="n20 s1000000 T"
+S6_LOGGING=0
+exec logutil-service /var/log/server

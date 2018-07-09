@@ -1,0 +1,1 @@
+/var/log/server true nobody,32768:32768 0644 2700
