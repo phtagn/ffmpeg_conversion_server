@@ -4,8 +4,6 @@ import os
 import sys
 import logging
 
-app = Flask(__name__)
-
 log = logging.getLogger('waitress')
 log.setLevel(logging.DEBUG)
 sh = logging.StreamHandler(sys.stdout)
@@ -17,6 +15,7 @@ log.addHandler(sh)
 
 def create_app():
     import configuration
+    app = Flask(__name__, instance_relative_config=True)
 
     @app.route('/debug/', methods=['GET'])
     def debuglevel():
@@ -81,6 +80,8 @@ def create_app():
             p = Process(target=Videoprocessor.process, args=(VP,))
             p.start()
             return jsonify({'Response': True})
+
+    return app
 
 
 def main():

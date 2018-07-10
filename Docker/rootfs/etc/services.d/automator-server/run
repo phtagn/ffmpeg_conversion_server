@@ -1,2 +1,2 @@
 #!/usr/bin/with-contenv bash
-exec s6-setuidgid abc python3 conversion-server/conversion-server/__init__.py
+exec s6-setuidgid abc python3 /conversion-server/conversion-server/__init__.py
