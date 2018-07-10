@@ -45,7 +45,7 @@ def create_app():
 
     @app.route('/config', methods=['GET'])
     def listconfig():
-        return jsonify(os.listdir('config'))
+        return jsonify(os.listdir(os.path.join(os.path.realpath(__file__),'config')))
 
     @app.route('/config/default', methods=['GET'])
     def defaultconfig():
@@ -56,8 +56,9 @@ def create_app():
     def configfile(configfile):
         cfgmgr = configuration.cfgmgr()
 
-        if os.path.exists(os.path.join('config', configfile)):
-            cfgmgr.load(config=configfile)
+        conf = os.path.join(os.path.join(os.path.realpath(__file__), 'config', configfile))
+        if os.path.exists(conf):
+            cfgmgr.load(config=conf)
             return jsonify(cfgmgr.cfg)
         else:
             abort(404)
