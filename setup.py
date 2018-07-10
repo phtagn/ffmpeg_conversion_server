@@ -12,6 +12,7 @@ setup(
         'tmdbsimple',
         'mutagen',
         'configobj',
-        'tvdb-api'
+        'tvdb-api',
+        'waitress'
     ]
 )
