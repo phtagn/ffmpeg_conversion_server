@@ -14,12 +14,15 @@ class Container(object):
         if fmt in self.supported_formats:
             self.format = fmt
             self.streams = {}
+            self.audio_streams = {}
+            self.video_streams = {}
+            self.subtitle_streams = {}
 
         else:
             raise Exception('Format %s not supported', fmt)
 
     def add_stream(self, stream: Union[AudioStream, VideoStream, SubtitleStream],
-                   stream_number: Optional[int] = 0) -> int:
+                   stream_number: Optional[int] = None, duplicate_check=False) -> int:
         """
         Add a stream to the list of streams in the Container. Streams can be with a specified stream
         number, or the method will insert at the next available stream number.
@@ -28,17 +31,41 @@ class Container(object):
         :return: the stream number where the stream was inserted
         """
         assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
-        if stream_number:
-            sn = stream_number
-        else:
-            sn = len(self.streams)
-            sn += 1 if sn > 0 else 0
-        if stream_number in self.streams.keys():
-            log.info('Replacing stream %s', stream_number)
+        if not duplicate_check or not self.is_duplicate(stream):
+            if stream_number is not None:
+                sn = stream_number
+            else:
+                sn = len(self.streams)
+                # sn += 1 if sn > 0 else 0
+            if stream_number in self.streams.keys():
+                log.info('Replacing stream %s', stream_number)
 
-        self.streams.update({sn: stream})
-        return sn
+            self.streams.update({sn: stream})
 
+            if isinstance(stream, VideoStream):
+                self.video_streams.update({sn: stream})
+            elif isinstance(stream, AudioStream):
+                self.audio_streams.update({sn: stream})
+            elif isinstance(stream, SubtitleStream):
+                self.subtitle_streams.update({sn: stream})
+
+            return sn
+
+    def is_duplicate(self, stream):
+        if isinstance(stream, AudioStream):
+            for k in self.audio_streams:
+                if stream == self.audio_streams[k]:
+                    return True
+        if isinstance(stream, VideoStream):
+            for k in self.video_streams:
+                if stream == self.video_streams[k]:
+                    return True
+        if isinstance(stream, SubtitleStream):
+            for k in self.subtitle_streams:
+                if stream == self.subtitle_streams[k]:
+                    return True
+
+        return False
 
 class ContainerFactory(object):
 

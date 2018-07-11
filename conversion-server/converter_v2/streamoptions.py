@@ -581,7 +581,8 @@ class Options(object):
                 opts.append(opt)
                 self.options = opts[:]
         else:
-            log.debug('Option %s was rejected because of None value', str(opt))
+            pass
+            #log.debug('Option %s was rejected because of None value', str(opt))
 
     def get_option(self, option):
 

@@ -8,7 +8,17 @@ from helpers.helpers import breakdown
 import shutil
 import os
 
-logging.getLogger(__name__)
+import sys
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
+
+
+#logging.getLogger(__name__)
 
 
 class VideoProcessor(object):
@@ -226,6 +236,7 @@ if __name__ == '__main__':
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
     desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
+    blade = os.path.abspath('/Users/jon/Downloads/Blade.Runner.2049.2017.VF2.2160p.UHD.BluRay.REMUX.HEVC.HDR.TrueHD.Atmos.7.1.DTS-HDMA.AC3.5.1-TSC.mkv')
     configname = 'defaults.ini'
     target = 'mp4'
     info = {'id': showid,
@@ -234,7 +245,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = MachineFactory.get(infile=laptop, config=configname, target=target, tagging_info=tagging_info)
+    VP = MachineFactory.get(infile=blade, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
 

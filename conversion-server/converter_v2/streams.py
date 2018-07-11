@@ -80,7 +80,7 @@ class SubtitleStream(Stream):
 class StreamFactory(object):
 
     @classmethod
-    def get_stream_by_type(cls, stream: Stream, codec) -> Stream:
+    def get_stream_by_type(cls, stream: Stream, codec) -> Union[VideoStream, AudioStream, SubtitleStream]:
         assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
         if isinstance(stream, VideoStream):
             return VideoStream(codec)

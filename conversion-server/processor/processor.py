@@ -3,17 +3,17 @@ from converter_v2.optionbuilder import OptionBuilder
 from converter_v2.containers import ContainerFactory
 from converter_v2.streams import AudioStream
 from converter_v2.streamoptions import *
-
+import os
 from converter_v2.encoders import EncoderFactory
 import logging
 
-#log = logging.getLogger()
-#log.setLevel(logging.DEBUG)
-#sh = logging.StreamHandler(sys.stdout)
-#sh.setLevel(logging.DEBUG)
-#formatter = logging.Formatter('%(levelname)s - %(message)s')
-#sh.setFormatter(formatter)
-#log.addHandler(sh)
+# log = logging.getLogger()
+# log.setLevel(logging.DEBUG)
+# sh = logging.StreamHandler(sys.stdout)
+# sh.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(levelname)s - %(message)s')
+# sh.setFormatter(formatter)
+# log.addHandler(sh)
 log = logging.getLogger(__name__)
 
 """Processes a video file in steps:
@@ -57,16 +57,17 @@ class Processor(object):
         self.defaults = self.load_defaults()
         self.encoders = self.load_encoders()
         self.ob = OptionBuilder(self.source_container, target)
+        self.target_container = None
 
     def process(self):
 
-        self.ob.generate_mapping(self.stream_formats, self.defaults,
-                                 ignore_video=self.config['Containers'][self.target]['video']['ignore_presets'],
-                                 ignore_audio=self.config['Containers'][self.target]['audio']['ignore_presets'],
-                                 ignore_subtitle=self.config['Containers'][self.target]['subtitle']['ignore_presets'])
-        self.add_extra_audio_streams()
+        self.ob.generate_mapping_2(self.stream_formats, self.defaults,
+                                   ignore_video=self.config['Containers'][self.target]['video']['ignore_presets'],
+                                   ignore_audio=self.config['Containers'][self.target]['audio']['ignore_presets'],
+                                   ignore_subtitle=self.config['Containers'][self.target]['subtitle']['ignore_presets'])
+        self.add_extra_audio_streams_2()
 
-        self.options = self.ob.generate_options(self.encoders)
+        self.options = self.ob.generate_options_2(self.encoders)
 
     def load_defaults(self):
         defaults = {}
@@ -175,7 +176,42 @@ class Processor(object):
                 if isinstance(stream, AudioStream):
                     for target_stream in extra_streams:
                         target_stream.add_options(stream.options.get_unique_option(Language))
-                        self.ob.add_mapping(idx, target_stream, mode='loose')
+                        self.ob.add_mapping(idx, target_stream, duplicate_check=True)
+
+    def add_extra_audio_streams_2(self):
+
+        tpl = {}
+        for _codec in self.config['Containers'][self.target]['audio']['accepted_track_formats']:
+
+            _options = Options()
+
+            if _codec in self.config['StreamFormats']:
+
+                for opt_name, opt_value in self.config['StreamFormats'][_codec].items():
+                    option = OptionFactory.get_option(opt_name)
+                    if option:
+                        if isinstance(opt_value, list):
+                            for v in opt_value:
+                                _options.add_option(option(v))
+                        else:
+                            _options.add_option(option(opt_value))
+            tpl.update({Codec(_codec): _options})
+
+        extra_streams = []
+        for cdc in [Codec(codec) for codec in self.config['Containers'][self.target]['audio']['force_create_tracks']]:
+            stream = AudioStream(cdc)
+            if cdc in tpl:
+                stream.add_options(*tpl[cdc].options)
+                extra_streams.append(stream)
+
+        if extra_streams:
+            for idx, stream in self.source_container.streams.items():
+                if isinstance(stream, AudioStream):
+                    for target_stream in extra_streams:
+                        target_stream.add_options(stream.options.get_unique_option(Language))
+                        t_idx = self.ob.target_container.add_stream(target_stream, duplicate_check=True)
+                        if t_idx:
+                            self.ob.add_mapping_2(idx, t_idx)
 
     def convert(self):
         from converter_v2.ffmpeg import FFMpeg
