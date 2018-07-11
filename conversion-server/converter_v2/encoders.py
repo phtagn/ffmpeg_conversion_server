@@ -14,6 +14,8 @@ class _FFMpegCodec(ABC):
     ffmpeg_codec_name = None
     supported_options = [Map]
     codec_type = ''
+    produces = ''
+    score = 5
 
     def __init__(self):
         self.options = Options()
@@ -62,9 +64,6 @@ class _SubtitleCodec(_FFMpegCodec):
     supported_options.extend([Language, Disposition])
     codec_type = 'subtitle'
 
-    def __init__(self, *options):
-        super(_SubtitleCodec, self).__init__(*options)
-
 
 class _Copy(_FFMpegCodec):
     """
@@ -97,6 +96,7 @@ class H264(_VideoCodec):
     ffmpeg_codec_name = 'libx264'
     supported_options = _VideoCodec.supported_options.copy()
     supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition, Crf])
+    produces = 'h264'
 
 
 class Vorbis(_VideoCodec):
@@ -104,8 +104,9 @@ class Vorbis(_VideoCodec):
     Vorbis audio codec.
     """
     codec_name = 'vorbis'
+    produces = 'vorbis'
     ffmpeg_codec_name = 'libvorbis'
-    supported_options = _VideoCodec.supported_options
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Aac(_AudioCodec):
@@ -115,6 +116,7 @@ class Aac(_AudioCodec):
     codec_name = 'aac'
     ffmpeg_codec_name = 'aac'
     supported_options = _AudioCodec.supported_options.copy()
+    produces = 'aac'
 
 
 class FdkAac(_AudioCodec):
@@ -123,6 +125,9 @@ class FdkAac(_AudioCodec):
     """
     codec_name = 'libfdk_aac'
     ffmpeg_codec_name = 'libfdk_aac'
+    produces = 'aac'
+    score = 2
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Faac(_AudioCodec):
@@ -131,6 +136,9 @@ class Faac(_AudioCodec):
     """
     codec_name = 'libfaac'
     ffmpeg_codec_name = 'libfaac'
+    produces = 'aac'
+    score = 1
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Ac3(_AudioCodec):
@@ -139,6 +147,8 @@ class Ac3(_AudioCodec):
     """
     codec_name = 'ac3'
     ffmpeg_codec_name = 'ac3'
+    produces = 'ac3'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class EAc3(_AudioCodec):
@@ -147,6 +157,8 @@ class EAc3(_AudioCodec):
     """
     codec_name = 'eac3'
     ffmpeg_codec_name = 'eac3'
+    produces = 'eac3'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Flac(_AudioCodec):
@@ -155,6 +167,8 @@ class Flac(_AudioCodec):
     """
     codec_name = 'flac'
     ffmpeg_codec_name = 'flac'
+    produces = 'flac'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Dts(_AudioCodec):
@@ -164,6 +178,8 @@ class Dts(_AudioCodec):
     codec_name = 'dts'
     ffmpeg_codec_name = 'dca'
     dca_experimental_enable = ['-strict', '-2']
+    produces = 'dts'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Mp3(_AudioCodec):
@@ -172,6 +188,8 @@ class Mp3(_AudioCodec):
     """
     codec_name = 'mp3'
     ffmpeg_codec_name = 'libmp3lame'
+    produces = 'mp3'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 class Mp2(_AudioCodec):
@@ -180,6 +198,8 @@ class Mp2(_AudioCodec):
     """
     codec_name = 'mp2'
     ffmpeg_codec_name = 'mp2'
+    produces = 'mp2'
+    supported_options = _AudioCodec.supported_options.copy()
 
 
 # Video Codecs
@@ -189,6 +209,8 @@ class Theora(_VideoCodec):
     """
     codec_name = 'theora'
     ffmpeg_codec_name = 'libtheora'
+    produces = 'theora'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class NVEncH264(H264):
@@ -197,6 +219,9 @@ class NVEncH264(H264):
     """
     codec_name = 'nvenc_h264'
     ffmpeg_codec_name = 'nvenc_h264'
+    produces = 'h264'
+    score = 1
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class H264VAAPI(H264):
@@ -205,7 +230,9 @@ class H264VAAPI(H264):
     """
     codec_name = 'h264vaapi'
     ffmpeg_codec_name = 'h264_vaapi'
-
+    produces = 'h264'
+    score = 1
+    supported_options = _VideoCodec.supported_options.copy()
 
 class H264QSV(H264):
     """
@@ -213,7 +240,9 @@ class H264QSV(H264):
     """
     codec_name = 'h264qsv'
     ffmpeg_codec_name = 'h264_qsv'
-
+    produces = 'h264'
+    score = 1
+    supported_options = _VideoCodec.supported_options.copy()
 
 class H265(_VideoCodec):
     """
@@ -221,10 +250,13 @@ class H265(_VideoCodec):
     """
     codec_name = 'hevc'
     ffmpeg_codec_name = 'libx265'
+    produces = 'hevc'
+    supported_options = _VideoCodec.supported_options.copy()
 
     def __init__(self):
         super(H265, self).__init__()
         self.options.add_option(Tag('hvc1'))
+
 
 class HEVCQSV(H265):
     """
@@ -232,7 +264,9 @@ class HEVCQSV(H265):
     """
     codec_name = 'hevcqsv'
     ffmpeg_codec_name = 'hevc_qsv'
-
+    produces = 'hevc'
+    score = 1
+    supported_options = _VideoCodec.supported_options.copy()
 
 class NVEncH265(H265):
     """
@@ -240,6 +274,9 @@ class NVEncH265(H265):
     """
     codec_name = 'nvenc_h265'
     ffmpeg_codec_name = 'hevc_nvenc'
+    produces = 'hevc'
+    score = 1
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Divx(_VideoCodec):
@@ -248,6 +285,8 @@ class Divx(_VideoCodec):
     """
     codec_name = 'divx'
     ffmpeg_codec_name = 'mpeg4'
+    produces = 'divx'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Vp8(_VideoCodec):
@@ -256,6 +295,8 @@ class Vp8(_VideoCodec):
     """
     codec_name = 'vp8'
     ffmpeg_codec_name = 'libvpx'
+    produces = 'vp8'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class H263(_VideoCodec):
@@ -264,6 +305,8 @@ class H263(_VideoCodec):
     """
     codec_name = 'h263'
     ffmpeg_codec_name = 'h263'
+    produces = 'h263'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Flv(_VideoCodec):
@@ -272,6 +315,8 @@ class Flv(_VideoCodec):
     """
     codec_name = 'flv'
     ffmpeg_codec_name = 'flv'
+    produces = 'flv'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Mpeg1(_VideoCodec):
@@ -280,6 +325,8 @@ class Mpeg1(_VideoCodec):
     """
     codec_name = 'mpeg1'
     ffmpeg_codec_name = 'mpeg1video'
+    produces = 'mpeg1'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 class Mpeg2(_VideoCodec):
@@ -288,6 +335,8 @@ class Mpeg2(_VideoCodec):
     """
     codec_name = 'mpeg2'
     ffmpeg_codec_name = 'mpeg2video'
+    produces = 'mpeg2'
+    supported_options = _VideoCodec.supported_options.copy()
 
 
 # Subtitle Codecs
@@ -297,6 +346,8 @@ class MOVText(_SubtitleCodec):
     """
     codec_name = 'mov_text'
     ffmpeg_codec_name = 'mov_text'
+    produces = 'mov_text'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class Srt(_SubtitleCodec):
@@ -305,6 +356,8 @@ class Srt(_SubtitleCodec):
     """
     codec_name = 'srt'
     ffmpeg_codec_name = 'srt'
+    produces = 'srt'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class WebVTT(_SubtitleCodec):
@@ -313,6 +366,8 @@ class WebVTT(_SubtitleCodec):
     """
     codec_name = 'webvtt'
     ffmpeg_codec_name = 'webvtt'
+    produces = 'webvtt'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class SSA(_SubtitleCodec):
@@ -321,6 +376,8 @@ class SSA(_SubtitleCodec):
     """
     codec_name = 'ass'
     ffmpeg_codec_name = 'ass'
+    produces = 'ssa'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class SubRip(_SubtitleCodec):
@@ -329,6 +386,8 @@ class SubRip(_SubtitleCodec):
     """
     codec_name = 'subrip'
     ffmpeg_codec_name = 'subrip'
+    produces = 'subrip'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class DVBSub(_SubtitleCodec):
@@ -337,6 +396,8 @@ class DVBSub(_SubtitleCodec):
     """
     codec_name = 'dvbsub'
     ffmpeg_codec_name = 'dvbsub'
+    produces = 'dvdsub'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class DVDSub(_SubtitleCodec):
@@ -345,10 +406,23 @@ class DVDSub(_SubtitleCodec):
     """
     codec_name = 'dvdsub'
     ffmpeg_codec_name = 'dvdsub'
+    produces = 'dvbsub'
+    supported_options = _SubtitleCodec.supported_options.copy()
+
+
+class Pgs(_SubtitleCodec):
+    codec_name = 'hdmv_pgs_subtitle'
+    ffmpeg_codec_name = 'hdmv_pgs_subtitle'
+    produces = 'hdmv_pgs_subtitle'
+    supported_options = _SubtitleCodec.supported_options.copy()
 
 
 class EncoderFactory(object):
-    supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy, Vorbis, Aac, H264, Ac3]
+    supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy,
+                        Vorbis, Aac, FdkAac, Faac, Ac3, EAc3, Flac, Dts, Mp2, Mp3,
+                        Theora, H264, NVEncH264, H264QSV, H264VAAPI, H265, NVEncH265, HEVCQSV, Divx, Vp8, H263, Flv,
+                        Mpeg1, Mpeg2,
+                        MOVText, WebVTT, SSA, SubRip, DVBSub, DVDSub, Pgs]
 
     @classmethod
     def get_codec_by_name(cls, name: str, *options: Union[IStreamOption, IStreamValueOption]):
@@ -360,11 +434,66 @@ class EncoderFactory(object):
         else:
             return codec_class(*options)
 
+    @classmethod
+    def is_supported(cls, name):
+        if name == 'copy':
+            return True
+        return (name in [enc.codec_name for enc in cls.supported_codecs] or
+                name in [enc.ffmpeg_codec_name for enc in cls.supported_codecs])
+
+
+class Encoders(object):
+
+    def __init__(self, ffmpeg_path, ffprobe_path):
+        from converter_v2.ffmpeg import FFMpeg
+        ff = FFMpeg(ffmpeg_path, ffprobe_path)
+        self.available_encoders = ff.encoders
+        self.available_decoders = ff.decoders
+
+        self.encoder_format = {}
+
+        for enc in EncoderFactory.supported_codecs:
+            if enc.produces in self.encoder_format and self.is_ffmpeg_supported(enc):
+                self.encoder_format[enc.produces].append(enc)
+
+            elif not self.is_ffmpeg_supported(enc):
+                print(f'Encoder {enc.codec_name} not supported by ffmpeg')
+                log.debug(f'Encoder {enc.ffmpeg_codec_name} not supported by ffmpeg')
+
+            else:
+                self.encoder_format[enc.produces] = [enc]
+
+    def is_ffmpeg_encoder(self, encoder: _FFMpegCodec):
+        if encoder.ffmpeg_codec_name == 'copy':
+            return True
+        else:
+            return encoder.ffmpeg_codec_name in self.available_encoders
+
+    def is_ffmpeg_decoder(self, decoder: _FFMpegCodec):
+        return decoder.ffmpeg_codec_name in self.available_decoders
+
+    def is_ffmpeg_supported(self, codec: _FFMpegCodec):
+        if codec.ffmpeg_codec_name == 'copy':
+            return True
+        else:
+            return (codec.codec_name in self.available_encoders or
+                    codec.codec_name in self.available_decoders)
+
+    def get_encoder_from_stream_format(self, streamformat):
+        if streamformat in self.encoder_format:
+            if len(self.encoder_format[streamformat]) == 1:
+                return self.encoder_format[streamformat][0]
+            elif len(self.encoder_format[streamformat]) > 1:
+                return self.get_best_encoder(self.encoder_format[streamformat])
+        else:
+            log.warning(f'Could not find encoder to produce format {streamformat}')
+            return None
+
+    def get_best_encoder(self, encoders):
+        l = sorted(encoders, key=lambda enc: enc.score, reverse=True)
+        return l[0]
 
 if __name__ == '__main__':
-    chan = OptionFactory.get_option('channels')('a', 5)
-    toto = Vorbis([chan])
-    lan = OptionFactory.get_option('language')('a', 'fre')
-    toto.add_option(lan)
-
-    print('Yeah')
+    e = Encoders('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
+    enc = e.get_encoder_from_stream_format('hevc')
+    print('yeha')

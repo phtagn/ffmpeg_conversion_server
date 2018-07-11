@@ -23,8 +23,66 @@ log = logging.getLogger(__name__)
 4) Build option list
 5) Convert !
 """
+class loadconfig(object):
+    def __init__(self, config, target):
+        self.config = config
+        self.target = target
 
+    def load_defaults(self):
+        defaults = {}
+        for k in ['audio', 'video', 'subtitle']:
+            _options = Options()
+            try:
+                _codec = self.config['Containers'][self.target][k]['default_format']
+            except IndexError:
+                log.critical('There are no default options in accepted_track_formats')
+                raise Exception('No default options')
 
+            if _codec in self.config['StreamFormats']:
+                for opt_name, opt_value in self.config['StreamFormats'][_codec].items():
+                    option = OptionFactory.get_option(opt_name)
+                    if option:
+                        if isinstance(opt_value, list) and len(opt_value) > 0:
+                            _options.add_option(option(opt_value[0]))
+                        else:
+                            _options.add_option(option(opt_value))
+
+            if _options:
+                defaults.update({k: (Codec(_codec), _options)})
+
+        return defaults
+
+    def load_stream_formats(self):
+
+        languages = []
+        templates = {}
+
+        for k in ['audio', 'video', 'subtitle']:
+            if k == 'audio':
+                languages = [Language(lng) for lng in self.config['Languages']['audio']]
+            elif k == 'video':
+                languages = []
+            elif k == 'subtitle':
+                languages = [Language(lng) for lng in self.config['Languages']['subtitle']]
+
+            for _codec in self.config.get('StreamFormats', []):
+
+                _options = Options()
+
+                for opt_name, opt_value in self.config['StreamFormats'][_codec].items():
+                    option = OptionFactory.get_option(opt_name)
+                    if option:
+                        if isinstance(opt_value, list):
+                            for v in opt_value:
+                                _options.add_option(option(v))
+                        else:
+                            _options.add_option(option(opt_value))
+
+                for lng in languages:
+                    _options.add_option(lng)
+                templates.update({Codec(_codec): _options})
+
+        return templates
 class Processor(object):
 
     def __init__(self, config, inputfile, outputfile, target):

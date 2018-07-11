@@ -132,7 +132,7 @@ class OptionBuilder(object):
                         target_stream.codec.value not in self.image_subtitle_codecs):
                     continue
 
-            target_index = self.target_container.add_stream(target_stream, duplicate_check=True)
+            target_index = self.target_container.add_stream(target_stream, duplicate_check=False)
 
             if target_index is not None:
                 self.add_mapping_2(index, target_index)

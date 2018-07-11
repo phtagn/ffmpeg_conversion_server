@@ -22,6 +22,8 @@ videocodecs = OrderedDict()
 audiocodecs = OrderedDict()
 subtitlecodecs = OrderedDict()
 
+p = {}
+preferred_encoders = OrderedDict()
 for codec in EncoderFactory.supported_codecs:
     optdict = OrderedDict()
     for opt in codec.supported_options:
@@ -34,6 +36,18 @@ for codec in EncoderFactory.supported_codecs:
             audiocodecs.update({codec.__name__: optdict})
         elif issubclass(codec, _SubtitleCodec):
             subtitlecodecs.update({codec.__name__: optdict})
+
+    if codec.produces in p and codec.codec_name != 'copy':
+        p[codec.produces].append(codec.codec_name)
+    elif codec.codec_name != 'copy':
+        p.update({codec.produces: [codec.codec_name]})
+
+
+for fmt in p:
+    if len(p[fmt]) > 1:
+        preferred_encoders[fmt] = f'force_list(default=list({", ".join(p[fmt])}))'
+
+
 encoders = {**videocodecs, **audiocodecs, **subtitlecodecs}
 
 videostreams = OrderedDict()
@@ -111,6 +125,7 @@ defaultconfig = {
             'postopts': 'string(default=None)'
         }},
     'StreamFormats': streams,
-    'Encoders': encoders}
+    'PreferredEncoders': preferred_encoders,
+    'EncoderOptions': encoders}
 
 configspec = ConfigObj(defaultconfig, list_values=False)

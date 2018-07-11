@@ -103,7 +103,7 @@ class FFMpeg(object):
                          'audio': [],
                          'subtitle': []}
 
-#        self._getcapabilities()
+        self._getcapabilities()
 
     def _getcapabilities(self):
 
