@@ -29,6 +29,7 @@ class OptionBuilder(object):
                            compare_presets=None):
 
         for index, stream in self.container.streams.items():
+
             if stream.codec.value in self.bad_codecs:
                 continue
 
@@ -54,9 +55,9 @@ class OptionBuilder(object):
                 # If codec is in the available templates we need to check the options
                 incompatible_options = stream.options.incompatible_options(stream_templates[codec])
 
-                if isinstance(stream, (AudioStream, SubtitleStream)) and incompatible_options.has_option(Language):
-                    # This means that if the languages do not match, then we skip the track
-                    continue
+                #if isinstance(stream, (AudioStream, SubtitleStream)) and incompatible_options.has_option(Language):
+                #    # This means that if the languages do not match, then we skip the track
+                #    continue
 
                 target_stream = StreamFactory.get_stream_by_type(stream, stream.codec)
                 if not ignore:
@@ -78,7 +79,7 @@ class OptionBuilder(object):
                         target_stream.codec.value not in self.image_subtitle_codecs):
                     continue
 
-            target_index = self.target_container.add_stream(target_stream, duplicate_check=True)
+            target_index = self.target_container.add_stream(target_stream, duplicate_check=False)
 
             if target_index is not None:
                 self.add_mapping_2(index, target_index)
@@ -90,29 +91,40 @@ class OptionBuilder(object):
         except KeyError:
             return None
 
-        assert isinstance(self.container.streams[source_index], self.container.streams[target_index].__class__)
+        assert isinstance(self.container.streams[source_index], self.target_container.streams[target_index].__class__)
 
         self.mapping.append((source_index, target_index))
 
-    # def fix_disposition(self):
-    #     video_counter = 0
-    #     audio_counter = 0
-    #     subtitle_counter = 0
-    #     video_disp = {0: [], 1: []}
-    #     audio_disp = {0: [], 1: []}
-    #     subtitle_disp = {0: [], 1: []}
-    #
-    #     for m in self.mapping:
-    #         disp = 0
-    #         (_, _), target_stream = m
-    #         if target_stream.options.has_option(Disposition) and True:
-    #             disposition = target_stream.options.get_unique_option(Disposition)
-    #             if isinstance(target_stream, VideoStream):
-    #                 video_disp[disposition.get('default', 0)] += 1
-    #             if isinstance(target_stream, AudioStream):
-    #                 audio_disp[disposition.get('default', 0)] += 1
-    #             if isinstance(target_stream, SubtitleStream):
-    #                 subtitle_disp[disposition.get('default', 0)] += 1
+    def fix_disposition(self):
+        video_counter = 0
+        audio_counter = 0
+        subtitle_counter = 0
+        video_disp = {0: [], 1: []}
+        audio_disp = {0: [], 1: []}
+        subtitle_disp = {0: [], 1: []}
+
+        for idx, stream in self.target_container.streams:
+            disp = stream.options.get_unique_option(Disposition)
+            if isinstance(stream, VideoStream):
+                if disp and 'default' in disp:
+                    video_disp[disp['default']].append(idx)
+                else:
+                    video_disp[0].append(idx)
+            elif isinstance(stream, AudioStream):
+                if disp and 'default' in disp:
+                    audio_disp[disp['default']].append(idx)
+                else:
+                    audio_disp[0].append(idx)
+            elif isinstance(stream, SubtitleStream):
+                if disp and 'default' in disp:
+                    subtitle_disp[disp['default']].append(idx)
+                else:
+                    subtitle_disp[0].append(idx)
+
+        if len(audio_disp[1]) == 0 and audio_disp[0]:
+
+
+
 
     def generate_options_2(self, encoders: List[_FFMpegCodec]) -> list:
         if not self.mapping:

@@ -197,7 +197,9 @@ class Processor2(object):
                             continue
 
 
-                    for target_stream in extra_streams:
+                    for t in extra_streams:
+                        target_stream = AudioStream(t.codec)
+                        target_stream.add_options(*t.options)
                         target_stream.add_options(stream.options.get_unique_option(Language))
                         t_idx = self.ob.target_container.add_stream(target_stream, duplicate_check=True)
                         if t_idx:

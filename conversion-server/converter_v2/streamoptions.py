@@ -55,7 +55,7 @@ class IStreamOption(metaclass=ABCMeta):
         return type(self)(self.value)
 
     def __str__(self):
-        return f'{self.__class__.__name__}: {self.value}'
+        return f'{self.__class__.__name__}: {str(self.value)}'
 
     def __hash__(self):
         return hash(self.value)
@@ -375,7 +375,20 @@ class Bsf(EncoderOption):
 OptionFactory.register_option(Bsf)
 
 
-class Disposition(IStreamOption):
+class Disposition(MetadataOption):
+    def __init__(self, val):
+        super(Disposition, self).__init__()
+        if 'default' in val:
+            self.value = val['default']
+        else:
+            self.value = None
+
+    def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
+        super(Disposition, self).parse(stream_type, stream_number)
+        return [f'-disposition:{self.stream_specifier}', str(self.value)]
+
+
+class Disposition2(MetadataOption):
     """Sets the disposition for a stream.
     This option overrides the disposition copied from the input stream. It is also possible to delete the disposition by setting it to 0.
     The following dispositions are recognized:
@@ -384,7 +397,7 @@ class Disposition(IStreamOption):
     name = 'disposition'
 
     def __init__(self, val: dict):
-        super(Disposition, self).__init__()
+        super(Disposition2, self).__init__()
         self.value = {}
         for k in val:
             if k.lower() not in ['default', 'dub', 'original', 'comment', 'lyrics', 'karaoke', 'forced',

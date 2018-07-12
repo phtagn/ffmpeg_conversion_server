@@ -235,7 +235,7 @@ if __name__ == '__main__':
     id_type = 'tvdb_id'
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
-    desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
+    desktop = os.path.abspath("/Users/Jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     blade = os.path.abspath('/Users/jon/Downloads/Blade.Runner.2049.2017.VF2.2160p.UHD.BluRay.REMUX.HEVC.HDR.TrueHD.Atmos.7.1.DTS-HDMA.AC3.5.1-TSC.mkv')
     configname = 'defaults.ini'
     target = 'mp4'
@@ -245,7 +245,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = MachineFactory.get(infile=blade, config=configname, target=target, tagging_info=tagging_info)
+    VP = MachineFactory.get(infile=desktop, config=configname, target=target, tagging_info=tagging_info)
 
     print(VP.state)
 
