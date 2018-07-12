@@ -25,84 +25,30 @@ class OptionBuilder(object):
         self.few_audio_tracks = True
         self.target_container = Container(target)
 
-    def is_duplicate(self, index, stream, mode='strict'):
-
-        for (idx, _), target_stream in self.mapping:
-            # if mode == 'strict':
-            #    if stream == target_stream and idx == index:
-            #        return True
-            # else:
-            if stream == target_stream:
-                return True
-        return False
-
-    def generate_mapping(self, stream_templates, stream_defaults, ignore_video=False, ignore_audio=False,
-                         ignore_subtitle=False):
+    def generate_mapping_2(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
+                           compare_presets=None):
 
         for index, stream in self.container.streams.items():
             if stream.codec.value in self.bad_codecs:
                 continue
 
             ignore = False
-            if isinstance(stream, VideoStream):
-                ignore = ignore_video
-            elif isinstance(stream, AudioStream):
-                ignore = ignore_audio
-            elif isinstance(stream, SubtitleStream):
-                ignore = ignore_subtitle
+            if compare_presets is not None:
+                ignore = compare_presets.get(stream.kind, False)
 
             codec = stream.codec
             if not codec:
                 raise Exception('stream has no codec')
 
-            if stream.codec in stream_templates:  # TODO: this is where we should look for filters
-                # If codec is in the available templates we need to check the options
-                incompatible_options = stream.options.incompatible_options(stream_templates[codec])
+            if isinstance(stream, AudioStream):
+                b = False
+                for lng in audio_languages:
+                    if lng == stream.options.get_unique_option(Language):
+                        b = True
+                        break
 
-                if incompatible_options.has_option(Language):
-                    # This means that if the languages do not match, then we skip the track
+                if not b:
                     continue
-
-                target_stream = StreamFactory.get_stream_by_type(stream, stream.codec)
-                if not ignore:
-                    target_stream.add_options(*incompatible_options.options)
-
-            else:
-                # If it is not, we know we're going to transcode.
-                codec, options = stream_defaults[stream.kind]
-                target_stream = StreamFactory.get_stream_by_type(stream, codec)
-                target_stream.add_options(*options.options)
-
-            for opt in stream.options.options:
-                if isinstance(opt, MetadataOption):
-                    target_stream.add_options(opt)
-
-            if isinstance(stream, SubtitleStream):
-                # FFmpeg can't transcode from an image based codec into a text based codec.
-                if stream.codec.value in self.image_subtitle_codecs and (
-                        target_stream.codec.value not in self.image_subtitle_codecs):
-                    continue
-
-            self.add_mapping(index, target_stream, duplicate_check=True)
-
-    def generate_mapping_2(self, stream_templates, stream_defaults, ignore_video=False, ignore_audio=False,
-                           ignore_subtitle=False):
-
-        for index, stream in self.container.streams.items():
-            if stream.codec.value in self.bad_codecs:
-                continue
-
-            ignore = False
-            if isinstance(stream, VideoStream):
-                ignore = ignore_video
-            elif isinstance(stream, AudioStream):
-                ignore = ignore_audio
-            elif isinstance(stream, SubtitleStream):
-                ignore = ignore_subtitle
-
-            codec = stream.codec
-            if not codec:
-                raise Exception('stream has no codec')
 
             if stream.codec in stream_templates:  # TODO: this is where we should look for filters
                 # If codec is in the available templates we need to check the options
@@ -120,7 +66,7 @@ class OptionBuilder(object):
                 # If it is not, we know we're going to transcode.
                 codec, options = stream_defaults[stream.kind]
                 target_stream = StreamFactory.get_stream_by_type(stream, codec)
-                target_stream.add_options(*options.options)
+                target_stream.add_options(*options)
 
             for opt in stream.options.options:
                 if isinstance(opt, MetadataOption):
@@ -132,11 +78,10 @@ class OptionBuilder(object):
                         target_stream.codec.value not in self.image_subtitle_codecs):
                     continue
 
-            target_index = self.target_container.add_stream(target_stream, duplicate_check=False)
+            target_index = self.target_container.add_stream(target_stream, duplicate_check=True)
 
             if target_index is not None:
                 self.add_mapping_2(index, target_index)
-
 
     def add_mapping_2(self, source_index, target_index):
 
@@ -148,25 +93,6 @@ class OptionBuilder(object):
         assert isinstance(self.container.streams[source_index], self.container.streams[target_index].__class__)
 
         self.mapping.append((source_index, target_index))
-
-    def add_mapping(self, source_stream_index, target_stream, duplicate_check=True):
-        assert isinstance(target_stream, (AudioStream, VideoStream, SubtitleStream))
-
-        try:
-            stream = self.container.streams[source_stream_index]
-        except KeyError:
-            return None
-
-        assert isinstance(self.container.streams[source_stream_index], target_stream.__class__)
-
-        if not duplicate_check or not self.is_duplicate(source_stream_index, target_stream, mode='loose'):
-            self.mapping.append((
-                (source_stream_index, stream),
-                target_stream))
-        # elif not duplicate_check:
-        #    self.mapping.append((
-        #        (source_stream_index, stream),
-        #        target_stream))
 
     # def fix_disposition(self):
     #     video_counter = 0
@@ -188,47 +114,6 @@ class OptionBuilder(object):
     #             if isinstance(target_stream, SubtitleStream):
     #                 subtitle_disp[disposition.get('default', 0)] += 1
 
-    def generate_options(self, encoders: List[_FFMpegCodec]) -> list:
-        if not self.mapping:
-            raise Exception('Nothing in mapping')
-        video_counter = 0
-        audio_counter = 0
-        subtitle_counter = 0
-        output = []
-
-        print(str(self))
-        for (idx, stream), target_stream in self.mapping:
-
-            fmt = StreamFormatFactory.get_format(target_stream.codec.value)
-            options_no_metadata = [o for o in target_stream.options.options if not isinstance(o, MetadataOption)]
-
-            if stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
-                encoder = fmt.get_encoder('copy')
-            else:
-                encoder = fmt.get_encoder('default')
-
-            for _enc in encoders:
-                if _enc.__class__ == encoder.__class__:
-                    encoder = _enc
-                    break
-
-            encoder.add_option(*target_stream.options.options)
-
-            output.extend(['-map', f'0:{idx}'])
-            if isinstance(stream, VideoStream):
-                output.extend(encoder.parse(video_counter))
-                video_counter += 1
-            elif isinstance(stream, AudioStream):
-                output.extend(encoder.parse(audio_counter))
-                audio_counter += 1
-            elif isinstance(stream, SubtitleStream):
-                output.extend(encoder.parse(subtitle_counter))
-                subtitle_counter += 1
-
-        output.extend(['-f', self.target])
-        log.debug(' '.join(output))
-        return output
-
     def generate_options_2(self, encoders: List[_FFMpegCodec]) -> list:
         if not self.mapping:
             raise Exception('Nothing in mapping')
@@ -244,7 +129,7 @@ class OptionBuilder(object):
             stream = self.container.streams[source_index]
 
             fmt = StreamFormatFactory.get_format(target_stream.codec.value)
-            options_no_metadata = [o for o in target_stream.options.options if not isinstance(o, MetadataOption)]
+            options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
 
             if stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
                 encoder = fmt.get_encoder('copy')
@@ -256,7 +141,7 @@ class OptionBuilder(object):
                     encoder = _enc
                     break
 
-            encoder.add_option(*target_stream.options.options)
+            encoder.add_option(*target_stream.options)
 
             output.extend(['-map', f'0:{source_index}'])
             if isinstance(stream, VideoStream):

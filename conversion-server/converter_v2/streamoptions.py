@@ -4,6 +4,7 @@ from abc import abstractmethod, ABCMeta
 from typing import Union
 from inspect import isclass
 from collections import Counter
+from copy import copy
 
 log = logging.getLogger(__name__)
 
@@ -63,13 +64,11 @@ class IStreamOption(metaclass=ABCMeta):
 class MetadataOption(IStreamOption):
     """Specific class for metadata options. Those need to be copied even if they are identical to the
     input options"""
-    pass
 
 
 class EncoderOption(IStreamOption):
     """A specific type for options that are supported only by encoders. Streams (e.g. VideoStream...) will not accept
     those options."""
-    pass
 
 
 class IStreamValueOption(IStreamOption):
@@ -582,7 +581,7 @@ class Options(object):
                 self.options = opts[:]
         else:
             pass
-            #log.debug('Option %s was rejected because of None value', str(opt))
+            # log.debug('Option %s was rejected because of None value', str(opt))
 
     def get_option(self, option):
 
@@ -639,10 +638,20 @@ class Options(object):
             if not self.has_option(opt):
                 continue
             else:
-                if not opt in self.options:
+                if opt not in self.options:
                     return False
 
         return True
 
     def __eq__(self, other):
         return Counter(self.options) == Counter(other.options)
+
+    def __iter__(self):
+        for opt in self.options:
+            yield opt
+
+    def __copy__(self):
+        new = type(self)()
+        for opt in self.options:
+            new.add_option(copy(opt))
+        return new

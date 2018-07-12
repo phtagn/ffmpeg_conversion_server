@@ -24,6 +24,7 @@ class cfgmgr(object):
                         write_empty_values=True,
                         create_empty=True,
                         stringify=True)
+
         cfg.validate(self._validator, copy=True)
         self._defaultconfig = cfg
 

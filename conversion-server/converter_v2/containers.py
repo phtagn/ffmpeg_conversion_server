@@ -54,15 +54,15 @@ class Container(object):
     def is_duplicate(self, stream):
         if isinstance(stream, AudioStream):
             for k in self.audio_streams:
-                if stream == self.audio_streams[k]:
+                if stream.codec == self.audio_streams[k].codec and stream == self.audio_streams[k]:
                     return True
         if isinstance(stream, VideoStream):
             for k in self.video_streams:
-                if stream == self.video_streams[k]:
+                if stream.codec == self.video_streams[k].codec and stream == self.video_streams[k]:
                     return True
         if isinstance(stream, SubtitleStream):
             for k in self.subtitle_streams:
-                if stream == self.subtitle_streams[k]:
+                if stream.codec == self.subtitle_streams[k].codec and stream == self.subtitle_streams[k]:
                     return True
 
         return False

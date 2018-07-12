@@ -79,7 +79,7 @@ class VideoProcessor(object):
 
         self.full_work_path = os.path.join(outpath, breakdown(self.inputfile)['file'] + '-working.' + self.target)
 
-        self.processor = processor.Processor(self.config, self.inputfile, self.full_work_path, self.target)
+        self.processor = processor.Processor2(self.config, self.inputfile, self.full_work_path, self.target)
 
     def do_process(self):
         """

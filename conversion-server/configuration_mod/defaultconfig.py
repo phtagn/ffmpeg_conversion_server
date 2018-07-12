@@ -38,14 +38,14 @@ for codec in EncoderFactory.supported_codecs:
             subtitlecodecs.update({codec.__name__: optdict})
 
     if codec.produces in p and codec.codec_name != 'copy':
-        p[codec.produces].append(codec.codec_name)
+        p[codec.produces].append(codec.ffmpeg_codec_name)
     elif codec.codec_name != 'copy':
-        p.update({codec.produces: [codec.codec_name]})
+        p.update({codec.produces: [codec.ffmpeg_codec_name]})
 
 
 for fmt in p:
     if len(p[fmt]) > 1:
-        preferred_encoders[fmt] = f'force_list(default=list({", ".join(p[fmt])}))'
+        preferred_encoders[fmt] = f'string(default={p[fmt][0]})'
 
 
 encoders = {**videocodecs, **audiocodecs, **subtitlecodecs}

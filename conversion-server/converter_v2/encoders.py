@@ -234,6 +234,7 @@ class H264VAAPI(H264):
     score = 1
     supported_options = _VideoCodec.supported_options.copy()
 
+
 class H264QSV(H264):
     """
     H.264/AVC video codec.
@@ -243,6 +244,7 @@ class H264QSV(H264):
     produces = 'h264'
     score = 1
     supported_options = _VideoCodec.supported_options.copy()
+
 
 class H265(_VideoCodec):
     """
@@ -267,6 +269,7 @@ class HEVCQSV(H265):
     produces = 'hevc'
     score = 1
     supported_options = _VideoCodec.supported_options.copy()
+
 
 class NVEncH265(H265):
     """
@@ -492,6 +495,7 @@ class Encoders(object):
     def get_best_encoder(self, encoders):
         l = sorted(encoders, key=lambda enc: enc.score, reverse=True)
         return l[0]
+
 
 if __name__ == '__main__':
     e = Encoders('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
