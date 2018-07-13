@@ -123,21 +123,49 @@ class OptionBuilder(object):
     #     if len(audio_disp[1]) == 0 and audio_disp[0]:
     #
 
-    def prepare_encoders(self, encoders: Encoders, preferred_encoders: dict=None):
+    def prepare_encoders(self, encoders: Encoders, preferred_encoders: dict = None):
+        video_counter = 0
+        audio_counter = 0
+        subtitle_counter = 0
+        output = []
+        preferred_encoders = {} if preferred_encoders is None else preferred_encoders
+
         if not self.mapping:
-            raise Exception('Cannot prepaper encoders, no mappling has been generated')
+            raise Exception('Cannot prepaper encoders, no mapping has been generated')
 
         for m in self.mapping:
             source_index, target_index = m
             source_stream = self.container.streams[source_index]
-            target_stream = self.container.streams[target_index]
+            target_stream = self.target_container.streams[target_index]
 
             options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
 
             if source_stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
-                encoder = encoders.get_copy_encoder(target_stream.kind)
+                encoder = encoders.get_copy_encoder(target_stream.kind)()
             else:
-                encoders.get_encoder_from_stream_format(target_stream.codec.value)
+                if target_stream.codec.value in preferred_encoders:
+                    encoder = encoders.get_specific_encoder(preferred_encoders[target_stream.codec.value],
+                                                            target_stream.codec.value)
+                else:
+                    encoder = encoders.get_encoder_from_stream_format(target_stream.codec.value)
+
+            encoder.add_option(*target_stream.options)
+
+            output.extend(['-map', f'0:{source_index}'])
+            if isinstance(target_stream, VideoStream):
+                output.extend(encoder.parse(video_counter))
+                video_counter += 1
+            elif isinstance(target_stream, AudioStream):
+                output.extend(encoder.parse(audio_counter))
+                audio_counter += 1
+            elif isinstance(target_stream, SubtitleStream):
+                output.extend(encoder.parse(subtitle_counter))
+                subtitle_counter += 1
+
+        output.extend(['-f', self.target_container.format])
+        log.debug(' '.join(output))
+        return output
+
 
     def generate_options_2(self, encoders: Encoders) -> list:
         if not self.mapping:
@@ -147,7 +175,7 @@ class OptionBuilder(object):
         subtitle_counter = 0
         output = []
 
-        print(str(self))
+        log.debug(str(self))
         for m in self.mapping:
             source_index, target_index = m
             target_stream = self.target_container.streams[target_index]

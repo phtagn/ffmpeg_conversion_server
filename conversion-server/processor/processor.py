@@ -118,6 +118,7 @@ class ProcessorConfig(object):
 
     def load_encoders(self):
         _encoders = Encoders(self.ffmpeg)
+        encs = []
 
         for _enc in self.config['EncoderOptions']:
             encoder = EncoderFactory.get_codec_by_name(_enc)
@@ -128,11 +129,11 @@ class ProcessorConfig(object):
                     if _option:
                         _options.add_option(_option(v))
 
-                if _options:
+                if _options and _encoders.is_ffmpeg_encoder(encoder):
                     encoder.add_option(*_options.options)
-                    _encoders.add_encoder(encoder)
+                    encs.append(encoder)
 
-        return _encoders
+        return encs
 
 
 class Processor2(object):
@@ -175,7 +176,7 @@ class Processor2(object):
         self.add_extra_audio_streams_2()
         self.ob.prepare_encoders(self.encoders)
 
-        self.options = self.ob.generate_options_2(self.config.encoders)
+        self.options = self.ob.generate_options_2(*self.config.encoders)
 
     def add_extra_audio_streams_2(self):
 

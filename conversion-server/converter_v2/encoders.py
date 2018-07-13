@@ -117,6 +117,7 @@ class Aac(_AudioCodec):
     ffmpeg_codec_name = 'aac'
     supported_options = _AudioCodec.supported_options.copy()
     produces = 'aac'
+    score = 5
 
 
 class FdkAac(_AudioCodec):
@@ -428,14 +429,14 @@ class EncoderFactory(object):
                         MOVText, WebVTT, SSA, SubRip, DVBSub, DVDSub, Pgs]
 
     @classmethod
-    def get_codec_by_name(cls, name: str, *options: Union[IStreamOption, IStreamValueOption]):
+    def get_codec_by_name(cls, name: str):
         try:
             codec_class = next(cdc for cdc in cls.supported_codecs if cdc.__name__.lower() == name.lower())
         except StopIteration:
             log.error('Could not find codec %s', name)
             return None
         else:
-            return codec_class(*options)
+            return codec_class()
 
     @classmethod
     def is_supported(cls, name):
@@ -455,20 +456,18 @@ class Encoders(object):
         self.encoder_format = {}
 
         for enc in EncoderFactory.supported_codecs:
-            if enc.produces in self.encoder_format and self.is_ffmpeg_supported(enc):
-                self.encoder_format[enc.produces].append(enc)
-            else:
-                self.encoder_format[enc.produces] = [enc]
+            if self.is_ffmpeg_supported(enc):
+                if enc.produces in self.encoder_format:
+                    self.encoder_format[enc.produces].append(enc)
+                else:
+                    self.encoder_format[enc.produces] = [enc]
 
     def add_encoder(self, encoder: _FFMpegCodec):
         assert issubclass(encoder.__class__, _FFMpegCodec)
-        if self.is_ffmpeg_supported(encoder.__class__):
+        if self.is_ffmpeg_supported(encoder):
             self.encoders.append(encoder)
         else:
             log.debug(f'Encoder {encoder.ffmpeg_codec_name} not supported by local build of ffmpeg')
-
-    def get_encoder_by_name(self, encoder_name:str, stream_format:str):
-
 
     def is_ffmpeg_encoder(self, encoder: _FFMpegCodec):
         if encoder.ffmpeg_codec_name == 'copy':
@@ -486,12 +485,26 @@ class Encoders(object):
             return (codec.ffmpeg_codec_name in self.available_encoders or
                     codec.ffmpeg_codec_name in self.available_decoders)
 
-    def get_encoder_from_stream_format(self, stream_format:str):
+    def get_specific_encoder(self, encoder_name, stream_format):
+        try:
+            enc = next([e for e in self.encoders if e.ffmpeg_codec_name == encoder_name])
+        except StopIteration:
+            enc = None
+
+        if enc and self.is_ffmpeg_encoder(enc):
+            return enc
+        else:
+            enc = self.get_best_encoder(stream_format)
+            log.warning(f'You requested encoder {encoder_name}, which is not supported'
+                        f'by ffmpeg, returning {enc.ffmpeg_name} instead')
+            return enc
+
+    def get_encoder_from_stream_format(self, stream_format: str):
         if stream_format in self.encoder_format:
-            if len(self.encoder_format[stream_format]) == 1:
-                return self.encoder_format[stream_format][0]
-            elif len(self.encoder_format[stream_format]) > 1:
-                return self.get_best_encoder(self.encoder_format[stream_format])
+            # if len(self.encoder_format[stream_format]) == 1:
+            #    return self.encoder_format[stream_format][0]
+            # elif len(self.encoder_format[stream_format]) > 1:
+            return self.get_best_encoder(self.encoder_format[stream_format])
         else:
             log.warning(f'Could not find encoder to produce format {stream_format}')
             return None
@@ -512,6 +525,9 @@ class Encoders(object):
 
 
 if __name__ == '__main__':
-    e = Encoders('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
-    enc = e.get_encoder_from_stream_format('mp3')
+    from converter_v2.ffmpeg import FFMpeg
+
+    ff = FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
+    e = Encoders(ff)
+    en = e.get_encoder_from_stream_format('mp3')
     print('yeha')
