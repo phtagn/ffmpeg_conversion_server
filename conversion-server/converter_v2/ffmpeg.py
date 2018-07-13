@@ -96,12 +96,8 @@ class FFMpeg(object):
 
         self.hwaccels = []
 
-        self.encoders = {'video': [],
-                         'audio': [],
-                         'subtitle': []}
-        self.decoders = {'video': [],
-                         'audio': [],
-                         'subtitle': []}
+        self.encoders = []
+        self.decoders = []
 
         self._getcapabilities()
 
@@ -117,14 +113,14 @@ class FFMpeg(object):
             else:
                 return None
 
-        p = self._spawn([self.ffmpeg_path, '-v', 0, '-codecs'])
+        p = self._spawn([self.ffmpeg_path, '-v', 0, '-encoders'])
         stdout, _ = p.communicate()
         stdout = stdout.decode(console_encoding, errors='ignore')
 
         start = False
         for line in stdout.split('\n'):
             theline = line.strip()
-            if theline == '-------':
+            if theline == '------':
                 start = True
                 continue
             if start:
@@ -132,12 +128,27 @@ class FFMpeg(object):
                     codectype, codecname, *_ = re.split(r' ', theline)
                 except ValueError:
                     pass
-                if codectype[1] == 'E':
-                    if sortcodec(codectype[2]):
-                        self.encoders[sortcodec(codectype[2])].append(codecname)
-                if codectype[0] == 'D':
-                    if sortcodec(codectype[2]):
-                        self.decoders[sortcodec(codectype[2])].append(codecname)
+                if codectype[0] in ['V', 'A', 'S']:
+                    self.encoders.append(codecname)
+
+
+        p = self._spawn([self.ffmpeg_path, '-v', 0, '-decoders'])
+        stdout, _ = p.communicate()
+        stdout = stdout.decode(console_encoding, errors='ignore')
+
+        start = False
+        for line in stdout.split('\n'):
+            theline = line.strip()
+            if theline == '------':
+                start = True
+                continue
+            if start:
+                try:
+                    codectype, codecname, *_ = re.split(r' ', theline)
+                except ValueError:
+                    pass
+                if codectype[0] in ['V', 'A', 'S']:
+                    self.decoders.append(codecname)
 
     @staticmethod
     def _spawn(cmds):

@@ -70,11 +70,9 @@ class Container(object):
 class ContainerFactory(object):
 
     @staticmethod
-    def container_from_ffprobe(filepath, ffmpegpath, ffprobepath) -> Container:
-        from converter_v2 import ffmpeg
+    def container_from_ffprobe(filepath, ffmpeg) -> Container:
 
-        ff = ffmpeg.FFMpeg(ffmpegpath, ffprobepath)
-        parser = ff.probe(filepath)
+        parser = ffmpeg.probe(filepath)
 
         if 'matroska' in parser.format:
             ctn = Container('matroska')

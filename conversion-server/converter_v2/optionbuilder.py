@@ -2,7 +2,7 @@ from converter_v2.streamformats import StreamFormatFactory
 from converter_v2.containers import Container
 from converter_v2.streamoptions import Language, MetadataOption, Disposition
 from converter_v2.streams import StreamFactory, VideoStream, AudioStream, SubtitleStream
-from converter_v2.encoders import _FFMpegCodec, Ac3, Dts, Aac
+from converter_v2.encoders import _FFMpegCodec, Encoders
 from typing import List
 import logging
 
@@ -15,13 +15,11 @@ class OptionBuilder(object):
     bad_audio_codecs = ['truehd']
     bad_codecs = ['truehd']
 
-    def __init__(self, container: Container, target, codec_priority=None):
+    def __init__(self, container: Container, target):
         self.container = container
         self.mapping = list()  # This is the mapping
         self.target = target
-        self.codec_priority = {Dts: 5,
-                               Ac3: 4,
-                               Aac: 1}
+
         self.few_audio_tracks = True
         self.target_container = Container(target)
 
@@ -55,7 +53,7 @@ class OptionBuilder(object):
                 # If codec is in the available templates we need to check the options
                 incompatible_options = stream.options.incompatible_options(stream_templates[codec])
 
-                #if isinstance(stream, (AudioStream, SubtitleStream)) and incompatible_options.has_option(Language):
+                # if isinstance(stream, (AudioStream, SubtitleStream)) and incompatible_options.has_option(Language):
                 #    # This means that if the languages do not match, then we skip the track
                 #    continue
 
@@ -95,38 +93,53 @@ class OptionBuilder(object):
 
         self.mapping.append((source_index, target_index))
 
-    def fix_disposition(self):
-        video_counter = 0
-        audio_counter = 0
-        subtitle_counter = 0
-        video_disp = {0: [], 1: []}
-        audio_disp = {0: [], 1: []}
-        subtitle_disp = {0: [], 1: []}
+    # def fix_disposition(self):
+    #     video_counter = 0
+    #     audio_counter = 0
+    #     subtitle_counter = 0
+    #     video_disp = {0: [], 1: []}
+    #     audio_disp = {0: [], 1: []}
+    #     subtitle_disp = {0: [], 1: []}
+    #
+    #
+    #     for idx, stream in self.target_container.streams:
+    #         disp = stream.options.get_unique_option(Disposition)
+    #         if isinstance(stream, VideoStream):
+    #             if disp and 'default' in disp:
+    #                 video_disp[disp['default']].append(idx)
+    #             else:
+    #                 video_disp[0].append(idx)
+    #         elif isinstance(stream, AudioStream):
+    #             if disp and 'default' in disp:
+    #                 audio_disp[disp['default']].append(idx)
+    #             else:
+    #                 audio_disp[0].append(idx)
+    #         elif isinstance(stream, SubtitleStream):
+    #             if disp and 'default' in disp:
+    #                 subtitle_disp[disp['default']].append(idx)
+    #             else:
+    #                 subtitle_disp[0].append(idx)
+    #
+    #     if len(audio_disp[1]) == 0 and audio_disp[0]:
+    #
 
-        for idx, stream in self.target_container.streams:
-            disp = stream.options.get_unique_option(Disposition)
-            if isinstance(stream, VideoStream):
-                if disp and 'default' in disp:
-                    video_disp[disp['default']].append(idx)
-                else:
-                    video_disp[0].append(idx)
-            elif isinstance(stream, AudioStream):
-                if disp and 'default' in disp:
-                    audio_disp[disp['default']].append(idx)
-                else:
-                    audio_disp[0].append(idx)
-            elif isinstance(stream, SubtitleStream):
-                if disp and 'default' in disp:
-                    subtitle_disp[disp['default']].append(idx)
-                else:
-                    subtitle_disp[0].append(idx)
+    def prepare_encoders(self, encoders: Encoders, preferred_encoders: dict=None):
+        if not self.mapping:
+            raise Exception('Cannot prepaper encoders, no mappling has been generated')
 
-        if len(audio_disp[1]) == 0 and audio_disp[0]:
+        for m in self.mapping:
+            source_index, target_index = m
+            source_stream = self.container.streams[source_index]
+            target_stream = self.container.streams[target_index]
 
+            options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
 
+            if source_stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
+                encoder = encoders.get_copy_encoder(target_stream.kind)
+            else:
+                encoders.get_encoder_from_stream_format(target_stream.codec.value)
 
-
-    def generate_options_2(self, encoders: List[_FFMpegCodec]) -> list:
+    def generate_options_2(self, encoders: Encoders) -> list:
         if not self.mapping:
             raise Exception('Nothing in mapping')
         video_counter = 0
@@ -148,7 +161,7 @@ class OptionBuilder(object):
             else:
                 encoder = fmt.get_encoder('default')
 
-            for _enc in encoders:
+            for _enc in encoders.encoders:
                 if _enc.__class__ == encoder.__class__:
                     encoder = _enc
                     break
@@ -167,7 +180,6 @@ class OptionBuilder(object):
                 subtitle_counter += 1
 
         output.extend(['-f', self.target_container.format])
-        log.debug(' '.join(output))
         return output
 
     def __str__(self):

@@ -12,7 +12,7 @@ class Stream(ABC):
     SubtitleStream
     """
     supported_options = []
-    multiple = []
+    kind = ''
 
     def __init__(self, codec: Codec):
         assert isinstance(codec, Codec)

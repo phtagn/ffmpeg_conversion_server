@@ -4,8 +4,9 @@ from converter_v2.containers import ContainerFactory
 from converter_v2.streams import AudioStream
 from converter_v2.streamoptions import *
 import os
-from converter_v2.encoders import EncoderFactory
+from converter_v2.encoders import EncoderFactory, Encoders
 import logging
+from converter_v2.ffmpeg import FFMpeg
 
 # log = logging.getLogger()
 # log.setLevel(logging.DEBUG)
@@ -30,21 +31,25 @@ class ProcessorConfig(object):
         self.config = config
         self.target = target
 
-        self._stream_formats = self.load_stream_formats()
-        self._encoders = self.load_encoders()
-        self._defaults = self.load_defaults()
+
 
         self._audio_languages = [Language(lng) for lng in self.config['Languages']['audio']]
         self._subtitle_languages = [Language(lng) for lng in self.config['Languages']['subtitle']]
 
-        self.ffmpeg_path = self.config['FFMPEG']['ffmpeg']
-        self.ffprobe_path = self.config['FFMPEG']['ffprobe']
+        #self.ffmpeg_path = self.config['FFMPEG']['ffmpeg']
+        #elf.ffprobe_path = self.config['FFMPEG']['ffprobe']
 
+        self.ffmpeg = FFMpeg(self.config['FFMPEG']['ffmpeg'], self.config['FFMPEG']['ffprobe'])
         self.ignore = {'video': self.config['Containers'][self.target]['video'].get('ignore_presets', False),
                        'audio': self.config['Containers'][self.target]['audio'].get('ignore_presets', False),
                        'subtitle': self.config['Containers'][self.target]['subtitle'].get('ignore_presets', False)}
 
         self.audio_create_tracks = self.config['Containers'][self.target]['audio']['force_create_tracks']
+
+        self._stream_formats = self.load_stream_formats()
+        self._encoders = self.load_encoders()
+        self._defaults = self.load_defaults()
+
 
     @property
     def defaults(self):
@@ -112,7 +117,7 @@ class ProcessorConfig(object):
         return templates
 
     def load_encoders(self):
-        _encoders = []
+        _encoders = Encoders(self.ffmpeg)
 
         for _enc in self.config['EncoderOptions']:
             encoder = EncoderFactory.get_codec_by_name(_enc)
@@ -125,7 +130,7 @@ class ProcessorConfig(object):
 
                 if _options:
                     encoder.add_option(*_options.options)
-                    _encoders.append(encoder)
+                    _encoders.add_encoder(encoder)
 
         return _encoders
 
@@ -149,10 +154,9 @@ class Processor2(object):
             raise FileNotFoundError
 
         self.source_container = ContainerFactory.container_from_ffprobe(self.infile,
-                                                                        self.config.ffmpeg_path,
-                                                                        self.config.ffprobe_path
+                                                                        self.config.ffmpeg
                                                                         )
-
+        self.encoders = Encoders(self.config.ffmpeg)
         self.target = target
         self.output = outputfile
         self.output_file = None
@@ -169,6 +173,7 @@ class Processor2(object):
                                    compare_presets=self.config.ignore)
 
         self.add_extra_audio_streams_2()
+        self.ob.prepare_encoders(self.encoders)
 
         self.options = self.ob.generate_options_2(self.config.encoders)
 
@@ -206,9 +211,9 @@ class Processor2(object):
                             self.ob.add_mapping_2(idx, t_idx)
 
     def convert(self):
-        from converter_v2.ffmpeg import FFMpeg
-        converter = FFMpeg(self.config.ffmpeg_path, self.config.ffprobe_path)
-        for t in converter.convert(self.infile, self.output, self.options):
+
+
+        for t in self.config.ffmpeg.convert(self.infile, self.output, self.options):
             print(t)
 
 
@@ -414,6 +419,6 @@ if __name__ == '__main__':
     desktop = os.path.abspath("/Users/jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     cfgmgr = configuration.cfgmgr()
     cfgmgr.load('defaults.ini')
-    p = Processor(cfgmgr.cfg, desktop, '/Users/jon/Downloads/toto.mp4', 'mp4')
+    p = Processor2(cfgmgr.cfg, desktop, '/Users/jon/Downloads/toto.mp4', 'mp4')
     p.process()
     p.convert()

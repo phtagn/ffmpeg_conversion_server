@@ -415,7 +415,7 @@ class DVDSub(_SubtitleCodec):
 
 class Pgs(_SubtitleCodec):
     codec_name = 'hdmv_pgs_subtitle'
-    ffmpeg_codec_name = 'hdmv_pgs_subtitle'
+    ffmpeg_codec_name = 'pgssub'
     produces = 'hdmv_pgs_subtitle'
     supported_options = _SubtitleCodec.supported_options.copy()
 
@@ -447,24 +447,28 @@ class EncoderFactory(object):
 
 class Encoders(object):
 
-    def __init__(self, ffmpeg_path, ffprobe_path):
-        from converter_v2.ffmpeg import FFMpeg
-        ff = FFMpeg(ffmpeg_path, ffprobe_path)
-        self.available_encoders = ff.encoders
-        self.available_decoders = ff.decoders
+    def __init__(self, ffmpeg):
 
+        self.available_encoders = ffmpeg.encoders
+        self.available_decoders = ffmpeg.decoders
+        self.encoders = []
         self.encoder_format = {}
 
         for enc in EncoderFactory.supported_codecs:
             if enc.produces in self.encoder_format and self.is_ffmpeg_supported(enc):
                 self.encoder_format[enc.produces].append(enc)
-
-            elif not self.is_ffmpeg_supported(enc):
-                print(f'Encoder {enc.codec_name} not supported by ffmpeg')
-                log.debug(f'Encoder {enc.ffmpeg_codec_name} not supported by ffmpeg')
-
             else:
                 self.encoder_format[enc.produces] = [enc]
+
+    def add_encoder(self, encoder: _FFMpegCodec):
+        assert issubclass(encoder.__class__, _FFMpegCodec)
+        if self.is_ffmpeg_supported(encoder.__class__):
+            self.encoders.append(encoder)
+        else:
+            log.debug(f'Encoder {encoder.ffmpeg_codec_name} not supported by local build of ffmpeg')
+
+    def get_encoder_by_name(self, encoder_name:str, stream_format:str):
+
 
     def is_ffmpeg_encoder(self, encoder: _FFMpegCodec):
         if encoder.ffmpeg_codec_name == 'copy':
@@ -479,25 +483,35 @@ class Encoders(object):
         if codec.ffmpeg_codec_name == 'copy':
             return True
         else:
-            return (codec.codec_name in self.available_encoders or
-                    codec.codec_name in self.available_decoders)
+            return (codec.ffmpeg_codec_name in self.available_encoders or
+                    codec.ffmpeg_codec_name in self.available_decoders)
 
-    def get_encoder_from_stream_format(self, streamformat):
-        if streamformat in self.encoder_format:
-            if len(self.encoder_format[streamformat]) == 1:
-                return self.encoder_format[streamformat][0]
-            elif len(self.encoder_format[streamformat]) > 1:
-                return self.get_best_encoder(self.encoder_format[streamformat])
+    def get_encoder_from_stream_format(self, stream_format:str):
+        if stream_format in self.encoder_format:
+            if len(self.encoder_format[stream_format]) == 1:
+                return self.encoder_format[stream_format][0]
+            elif len(self.encoder_format[stream_format]) > 1:
+                return self.get_best_encoder(self.encoder_format[stream_format])
         else:
-            log.warning(f'Could not find encoder to produce format {streamformat}')
+            log.warning(f'Could not find encoder to produce format {stream_format}')
             return None
 
-    def get_best_encoder(self, encoders):
+    @staticmethod
+    def get_best_encoder(encoders):
         l = sorted(encoders, key=lambda enc: enc.score, reverse=True)
         return l[0]
+
+    @staticmethod
+    def get_copy_encoder(kind):
+        if kind == 'video':
+            return VideoCopy
+        elif kind == 'audio':
+            return AudioCopy
+        elif kind == 'subtitle':
+            return SubtitleCopy
 
 
 if __name__ == '__main__':
     e = Encoders('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
-    enc = e.get_encoder_from_stream_format('hevc')
+    enc = e.get_encoder_from_stream_format('mp3')
     print('yeha')
