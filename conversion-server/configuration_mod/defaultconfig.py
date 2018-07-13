@@ -31,11 +31,11 @@ for codec in EncoderFactory.supported_codecs:
             optdict.update({opt.__name__: exposed_options[opt.__name__]})
     if optdict:
         if issubclass(codec, _VideoCodec):
-            videocodecs.update({codec.__name__: optdict})
+            videocodecs.update({codec.codec_name: optdict})
         elif issubclass(codec, _AudioCodec):
-            audiocodecs.update({codec.__name__: optdict})
+            audiocodecs.update({codec.codec_name: optdict})
         elif issubclass(codec, _SubtitleCodec):
-            subtitlecodecs.update({codec.__name__: optdict})
+            subtitlecodecs.update({codec.codec_name: optdict})
 
     if codec.produces in p and codec.codec_name != 'copy':
         p[codec.produces].append(codec.ffmpeg_codec_name)

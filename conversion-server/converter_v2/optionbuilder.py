@@ -122,8 +122,12 @@ class OptionBuilder(object):
     #
     #     if len(audio_disp[1]) == 0 and audio_disp[0]:
     #
+    @staticmethod
+    def get_best_encoder(*encoders, stream_format):
+        l = [enc for enc in encoders if enc.produces == stream_format]
+        return sorted(l, key=lambda enc: enc.score, reverse=True)[0]
 
-    def prepare_encoders(self, encoders: Encoders, preferred_encoders: dict = None):
+    def prepare_encoders(self, *encoders: _FFMpegCodec, preferred_encoders: dict = None):
         video_counter = 0
         audio_counter = 0
         subtitle_counter = 0
@@ -141,13 +145,17 @@ class OptionBuilder(object):
             options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
 
             if source_stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
-                encoder = encoders.get_copy_encoder(target_stream.kind)()
+                if target_stream.kind == 'video':
+                    encoder = [enc for enc in encoders if enc.codec_name == 'video_copy'][0]
+                elif target_stream.kind == 'audio':
+                    encoder = [enc for enc in encoders if enc.codec_name == 'audio_copy'][0]
+                elif target_stream.kind == 'subtitle':
+                    encoder = [enc for enc in encoders if enc.codec_name == 'subtitle_copy'][0]
             else:
                 if target_stream.codec.value in preferred_encoders:
-                    encoder = encoders.get_specific_encoder(preferred_encoders[target_stream.codec.value],
-                                                            target_stream.codec.value)
+                    encoder = next([enc for enc in encoders if enc.ffmpeg_codec_name == preferred_encoders[target_stream.codec.value]])
                 else:
-                    encoder = encoders.get_encoder_from_stream_format(target_stream.codec.value)
+                    encoder = self.get_best_encoder(*encoders, stream_format=target_stream.codec.value)
 
             encoder.add_option(*target_stream.options)
 

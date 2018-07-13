@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from converter_v2.streamoptions import *
-from typing import Union
+from typing import Union, List
 from abc import ABC
 
 log = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ class _FFMpegCodec(ABC):
 
         for option in options:
             assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
+            print(self.__class__.__name__)
             if type(option) in self.__class__.supported_options:
                 self.options.add_option(option)
             else:
@@ -75,16 +76,19 @@ class _Copy(_FFMpegCodec):
 
 class VideoCopy(_Copy):
     codec_type = 'video'
+    codec_name = 'video_copy'
     supported_options = _VideoCodec.supported_options.copy()
 
 
 class AudioCopy(_Copy):
     codec_type = 'audio'
+    codec_name = 'audio_copy'
     supported_options = _AudioCodec.supported_options.copy()
 
 
 class SubtitleCopy(_Copy):
     codec_type = 'subtitle'
+    codec_name = 'subtitle_copy'
     supported_options = _SubtitleCodec.supported_options.copy()
 
 
@@ -462,13 +466,6 @@ class Encoders(object):
                 else:
                     self.encoder_format[enc.produces] = [enc]
 
-    def add_encoder(self, encoder: _FFMpegCodec):
-        assert issubclass(encoder.__class__, _FFMpegCodec)
-        if self.is_ffmpeg_supported(encoder):
-            self.encoders.append(encoder)
-        else:
-            log.debug(f'Encoder {encoder.ffmpeg_codec_name} not supported by local build of ffmpeg')
-
     def is_ffmpeg_encoder(self, encoder: _FFMpegCodec):
         if encoder.ffmpeg_codec_name == 'copy':
             return True
@@ -477,6 +474,13 @@ class Encoders(object):
 
     def is_ffmpeg_decoder(self, decoder: _FFMpegCodec):
         return decoder.ffmpeg_codec_name in self.available_decoders
+
+    def add_encoder(self, encoder: _FFMpegCodec):
+        assert issubclass(encoder.__class__, _FFMpegCodec)
+        if self.is_ffmpeg_supported(encoder):
+            self.encoders.append(encoder)
+        else:
+            log.debug(f'Encoder {encoder.ffmpeg_codec_name} not supported by local build of ffmpeg')
 
     def is_ffmpeg_supported(self, codec: _FFMpegCodec):
         if codec.ffmpeg_codec_name == 'copy':
@@ -504,13 +508,14 @@ class Encoders(object):
             # if len(self.encoder_format[stream_format]) == 1:
             #    return self.encoder_format[stream_format][0]
             # elif len(self.encoder_format[stream_format]) > 1:
-            return self.get_best_encoder(self.encoder_format[stream_format])
+            t = [enc for enc in self.encoders if enc.produces == stream_format]
+            return self.get_best_encoder(t)
         else:
             log.warning(f'Could not find encoder to produce format {stream_format}')
             return None
 
     @staticmethod
-    def get_best_encoder(encoders):
+    def get_best_encoder(encoders: List[_FFMpegCodec]):
         l = sorted(encoders, key=lambda enc: enc.score, reverse=True)
         return l[0]
 

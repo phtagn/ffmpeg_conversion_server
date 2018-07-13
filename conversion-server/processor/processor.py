@@ -31,13 +31,8 @@ class ProcessorConfig(object):
         self.config = config
         self.target = target
 
-
-
         self._audio_languages = [Language(lng) for lng in self.config['Languages']['audio']]
         self._subtitle_languages = [Language(lng) for lng in self.config['Languages']['subtitle']]
-
-        #self.ffmpeg_path = self.config['FFMPEG']['ffmpeg']
-        #elf.ffprobe_path = self.config['FFMPEG']['ffprobe']
 
         self.ffmpeg = FFMpeg(self.config['FFMPEG']['ffmpeg'], self.config['FFMPEG']['ffprobe'])
         self.ignore = {'video': self.config['Containers'][self.target]['video'].get('ignore_presets', False),
@@ -49,7 +44,6 @@ class ProcessorConfig(object):
         self._stream_formats = self.load_stream_formats()
         self._encoders = self.load_encoders()
         self._defaults = self.load_defaults()
-
 
     @property
     def defaults(self):
@@ -117,21 +111,24 @@ class ProcessorConfig(object):
         return templates
 
     def load_encoders(self):
+
         _encoders = Encoders(self.ffmpeg)
         encs = []
 
-        for _enc in self.config['EncoderOptions']:
-            encoder = EncoderFactory.get_codec_by_name(_enc)
-            if encoder:
-                _options = Options()
-                for k, v in self.config['EncoderOptions'][_enc].items():
+        for encoder in EncoderFactory.supported_codecs:
+            if not _encoders.is_ffmpeg_encoder(encoder):
+                continue
+
+            _options = Options()
+            if encoder.codec_name in self.config['EncoderOptions']:
+                for k, v in self.config['EncoderOptions'][encoder.codec_name].items():
                     _option = OptionFactory.get_option(k)
                     if _option:
                         _options.add_option(_option(v))
 
-                if _options and _encoders.is_ffmpeg_encoder(encoder):
-                    encoder.add_option(*_options.options)
-                    encs.append(encoder)
+            p = encoder()
+            p.add_option(*_options)
+            encs.append(p)
 
         return encs
 
@@ -157,7 +154,7 @@ class Processor2(object):
         self.source_container = ContainerFactory.container_from_ffprobe(self.infile,
                                                                         self.config.ffmpeg
                                                                         )
-        self.encoders = Encoders(self.config.ffmpeg)
+        self.encoders = self.config.encoders
         self.target = target
         self.output = outputfile
         self.output_file = None
@@ -174,9 +171,9 @@ class Processor2(object):
                                    compare_presets=self.config.ignore)
 
         self.add_extra_audio_streams_2()
-        self.ob.prepare_encoders(self.encoders)
+        self.ob.prepare_encoders(*self.encoders)
 
-        self.options = self.ob.generate_options_2(*self.config.encoders)
+        # self.options = self.ob.generate_options_2(self.config.encoders)
 
     def add_extra_audio_streams_2(self):
 
@@ -202,7 +199,6 @@ class Processor2(object):
                         if not b:
                             continue
 
-
                     for t in extra_streams:
                         target_stream = AudioStream(t.codec)
                         target_stream.add_options(*t.options)
@@ -212,7 +208,6 @@ class Processor2(object):
                             self.ob.add_mapping_2(idx, t_idx)
 
     def convert(self):
-
 
         for t in self.config.ffmpeg.convert(self.infile, self.output, self.options):
             print(t)
