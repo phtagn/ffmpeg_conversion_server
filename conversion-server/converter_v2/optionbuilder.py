@@ -2,9 +2,10 @@ from converter_v2.streamformats import StreamFormatFactory
 from converter_v2.containers import Container
 from converter_v2.streamoptions import Language, MetadataOption, Disposition
 from converter_v2.streams import StreamFactory, VideoStream, AudioStream, SubtitleStream
-from converter_v2.encoders import _FFMpegCodec, Encoders
+from converter_v2.encoders import _FFMpegCodec, Encoders, EncoderFactory
 from typing import List
 import logging
+from copy import copy
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,16 @@ class OptionBuilder(object):
                 if not b:
                     continue
 
+            if isinstance(stream, SubtitleStream):
+                b = False
+                for lng in subtitle_languages:
+                    if lng == stream.options.get_unique_option(Language):
+                        b = True
+                        break
+
+                if not b:
+                    continue
+
             if stream.codec in stream_templates:  # TODO: this is where we should look for filters
                 # If codec is in the available templates we need to check the options
                 incompatible_options = stream.options.incompatible_options(stream_templates[codec])
@@ -59,7 +70,7 @@ class OptionBuilder(object):
 
                 target_stream = StreamFactory.get_stream_by_type(stream, stream.codec)
                 if not ignore:
-                    target_stream.add_options(*incompatible_options.options)
+                    target_stream.add_options(*incompatible_options)
 
             else:
                 # If it is not, we know we're going to transcode.
@@ -67,9 +78,14 @@ class OptionBuilder(object):
                 target_stream = StreamFactory.get_stream_by_type(stream, codec)
                 target_stream.add_options(*options)
 
-            for opt in stream.options.options:
+            for opt in stream.options:
                 if isinstance(opt, MetadataOption):
                     target_stream.add_options(opt)
+
+            if target_stream.codec in stream_templates:
+                for opt in stream_templates[target_stream.codec]:
+                    if isinstance(opt, MetadataOption):
+                        target_stream.add_options(opt)
 
             if isinstance(stream, SubtitleStream):
                 # FFmpeg can't transcode from an image based codec into a text based codec.
@@ -127,13 +143,13 @@ class OptionBuilder(object):
         l = [enc for enc in encoders if enc.produces == stream_format]
         return sorted(l, key=lambda enc: enc.score, reverse=True)[0]
 
-    def prepare_encoders(self, *encoders: _FFMpegCodec, preferred_encoders: dict = None):
+    def prepare_encoders(self, factory: EncoderFactory, encoder_options, preferred_encoders: dict = None):
         video_counter = 0
         audio_counter = 0
         subtitle_counter = 0
         output = []
         preferred_encoders = {} if preferred_encoders is None else preferred_encoders
-
+        log.debug(str(self))
         if not self.mapping:
             raise Exception('Cannot prepaper encoders, no mapping has been generated')
 
@@ -146,16 +162,19 @@ class OptionBuilder(object):
 
             if source_stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
                 if target_stream.kind == 'video':
-                    encoder = [enc for enc in encoders if enc.codec_name == 'video_copy'][0]
+                    encoder = factory.get_codec_by_name('video_copy')
                 elif target_stream.kind == 'audio':
-                    encoder = [enc for enc in encoders if enc.codec_name == 'audio_copy'][0]
+                    encoder = factory.get_codec_by_name('audio_copy')
                 elif target_stream.kind == 'subtitle':
-                    encoder = [enc for enc in encoders if enc.codec_name == 'subtitle_copy'][0]
+                    encoder = factory.get_codec_by_name('subtitle_copy')
             else:
                 if target_stream.codec.value in preferred_encoders:
-                    encoder = next([enc for enc in encoders if enc.ffmpeg_codec_name == preferred_encoders[target_stream.codec.value]])
+                    encoder = factory.get_codec_by_name(preferred_encoders[target_stream.codec.value])
                 else:
-                    encoder = self.get_best_encoder(*encoders, stream_format=target_stream.codec.value)
+                    encoder = factory.get_best_encoder(target_stream.codec.value)
+
+            if encoder.codec_name in encoder_options:
+                encoder.add_option(*encoder_options[encoder.codec_name])
 
             encoder.add_option(*target_stream.options)
 
@@ -173,7 +192,6 @@ class OptionBuilder(object):
         output.extend(['-f', self.target_container.format])
         log.debug(' '.join(output))
         return output
-
 
     def generate_options_2(self, encoders: Encoders) -> list:
         if not self.mapping:

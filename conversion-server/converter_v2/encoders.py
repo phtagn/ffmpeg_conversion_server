@@ -12,7 +12,7 @@ class _FFMpegCodec(ABC):
     """
     codec_name = None
     ffmpeg_codec_name = None
-    supported_options = [Map]
+    supported_options = []
     codec_type = ''
     produces = ''
     score = 5
@@ -50,7 +50,7 @@ class _FFMpegCodec(ABC):
 
 class _VideoCodec(_FFMpegCodec):
     supported_options = _FFMpegCodec.supported_options.copy()
-    supported_options.extend([Bitrate, Disposition, Bsf])
+    supported_options.extend([Bitrate, Disposition, Bsf, Tag])
     codec_type = 'video'
 
 
@@ -260,9 +260,9 @@ class H265(_VideoCodec):
     produces = 'hevc'
     supported_options = _VideoCodec.supported_options.copy()
 
-    def __init__(self):
-        super(H265, self).__init__()
-        self.options.add_option(Tag('hvc1'))
+    #def __init__(self):
+    #    super(H265, self).__init__()
+    #    self.options.add_option(Tag('hvc1'))
 
 
 class HEVCQSV(H265):
@@ -426,21 +426,33 @@ class Pgs(_SubtitleCodec):
 
 
 class EncoderFactory(object):
-    supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy,
+    _supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy,
                         Vorbis, Aac, FdkAac, Faac, Ac3, EAc3, Flac, Dts, Mp2, Mp3,
                         Theora, H264, NVEncH264, H264QSV, H264VAAPI, H265, NVEncH265, HEVCQSV, Divx, Vp8, H263, Flv,
                         Mpeg1, Mpeg2,
                         MOVText, WebVTT, SSA, SubRip, DVBSub, DVDSub, Pgs]
 
-    @classmethod
-    def get_codec_by_name(cls, name: str):
+    def __init__(self, ffmpeg):
+        self._available_encoders = ffmpeg.encoders
+        self._available_decoders = ffmpeg.decoders
+        self.supported_codecs = [cdc for cdc in self.__class__._supported_codecs if cdc.ffmpeg_codec_name in ffmpeg.encoders]
+        self.supported_codecs.extend([VideoCopy, AudioCopy, SubRip])
+
+    def get_best_encoder(self, stream_format):
+        matching_encoder = [cdc for cdc in self.supported_codecs if cdc.produces == stream_format]
+        return sorted(matching_encoder, key=lambda enc: enc.score, reverse=True)[0]()
+
+    def get_codec_by_name(self, name: str):
         try:
-            codec_class = next(cdc for cdc in cls.supported_codecs if cdc.__name__.lower() == name.lower())
+            codec_class = next(cdc for cdc in self.supported_codecs if cdc.codec_name == name.lower())
         except StopIteration:
             log.error('Could not find codec %s', name)
             return None
         else:
             return codec_class()
+
+    def is_ffmpeg_encoder(self, enc):
+        return enc in self._available_encoders
 
     @classmethod
     def is_supported(cls, name):
@@ -448,6 +460,8 @@ class EncoderFactory(object):
             return True
         return (name in [enc.codec_name for enc in cls.supported_codecs] or
                 name in [enc.ffmpeg_codec_name for enc in cls.supported_codecs])
+
+
 
 
 class Encoders(object):

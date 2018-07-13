@@ -253,7 +253,7 @@ class Language(MetadataOption):
 OptionFactory.register_option(Language)
 
 
-class Tag(EncoderOption):
+class Tag(MetadataOption):
     name = 'tag'
 
     def __init__(self, val):
@@ -264,6 +264,7 @@ class Tag(EncoderOption):
         super(Tag, self).parse(stream_type, stream_number)
         return [f'-tag:{self.stream_specifier}', f'{self.value}']
 
+OptionFactory.register_option(Tag)
 
 class Bitrate(IStreamValueOption):
     """Bitrate option, applies to video and audio streams"""

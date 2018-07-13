@@ -39,6 +39,8 @@ class ProcessorConfig(object):
                        'audio': self.config['Containers'][self.target]['audio'].get('ignore_presets', False),
                        'subtitle': self.config['Containers'][self.target]['subtitle'].get('ignore_presets', False)}
 
+        self.encoder_factory = EncoderFactory(self.ffmpeg)
+
         self.audio_create_tracks = self.config['Containers'][self.target]['audio']['force_create_tracks']
 
         self._stream_formats = self.load_stream_formats()
@@ -112,12 +114,9 @@ class ProcessorConfig(object):
 
     def load_encoders(self):
 
-        _encoders = Encoders(self.ffmpeg)
-        encs = []
+        encs = {}
 
-        for encoder in EncoderFactory.supported_codecs:
-            if not _encoders.is_ffmpeg_encoder(encoder):
-                continue
+        for encoder in self.encoder_factory.supported_codecs:
 
             _options = Options()
             if encoder.codec_name in self.config['EncoderOptions']:
@@ -126,9 +125,7 @@ class ProcessorConfig(object):
                     if _option:
                         _options.add_option(_option(v))
 
-            p = encoder()
-            p.add_option(*_options)
-            encs.append(p)
+            encs[encoder.codec_name] = _options
 
         return encs
 
@@ -171,7 +168,7 @@ class Processor2(object):
                                    compare_presets=self.config.ignore)
 
         self.add_extra_audio_streams_2()
-        self.ob.prepare_encoders(*self.encoders)
+        self.ob.prepare_encoders(self.config.encoder_factory, self.config.encoders)
 
         # self.options = self.ob.generate_options_2(self.config.encoders)
 

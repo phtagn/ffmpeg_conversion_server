@@ -20,7 +20,7 @@ class BaseStreamFormat(object):
 
 
 class VideoStream(BaseStreamFormat):
-    supported_options = [Height, Width, Codec, Bitrate, PixFmt]
+    supported_options = [Height, Width, Codec, Bitrate, PixFmt, Tag]
 
 
 class AudioStream(BaseStreamFormat):

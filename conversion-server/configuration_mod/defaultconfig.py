@@ -14,7 +14,8 @@ exposed_options = {
     Height.__name__: 'integer(default=-1)',
     Bsf.__name__: 'string(default=None)',
     Crf.__name__: 'integer(default=-1)',
-    Width.__name__: 'integer(default=-1)'}
+    Width.__name__: 'integer(default=-1)',
+    Tag.__name__: 'string(default=None)'}
 
 encoders = OrderedDict()
 
@@ -24,7 +25,7 @@ subtitlecodecs = OrderedDict()
 
 p = {}
 preferred_encoders = OrderedDict()
-for codec in EncoderFactory.supported_codecs:
+for codec in EncoderFactory._supported_codecs:
     optdict = OrderedDict()
     for opt in codec.supported_options:
         if opt.__name__ in exposed_options and issubclass(opt, EncoderOption):
