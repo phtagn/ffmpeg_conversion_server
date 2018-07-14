@@ -11,16 +11,16 @@ import os
 
 import sys
 
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
-sh = logging.StreamHandler(sys.stdout)
-sh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-sh.setFormatter(formatter)
-log.addHandler(sh)
+#log = logging.getLogger()
+#log.setLevel(logging.DEBUG)
+#sh = logging.StreamHandler(sys.stdout)
+#sh.setLevel(logging.DEBUG)
+#formatter = logging.Formatter('%(levelname)s - %(message)s')
+#sh.setFormatter(formatter)
+#log.addHandler(sh)
 
 
-# logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class VideoProcessor(object):
@@ -77,7 +77,8 @@ class VideoProcessor(object):
         if self.config['File'].get('copy_to') and os.path.isdir(self.config['File'].get('copy_to')):
             self.copy_folder = os.path.abspath(self.config['File'].get('copy_to'))
 
-        if self.config['File'].get('move_to') and os.path.isdir(self.config['File'].get('move_to')) and not self.copy_folder:
+        if self.config['File'].get('move_to') and os.path.isdir(
+                self.config['File'].get('move_to')) and not self.copy_folder:
             self.move_folder = os.path.abspath(self.config['File'].get('move_to'))
 
         self.delete_original = self.config['File'].get('delete_original')
@@ -223,7 +224,7 @@ class VideoProcessor(object):
             r.refresh('movie')
 
 
-def main(infile, target, config, tagging_info=None, notify=None):
+def build_machine(infile, target, config, tagging_info=None, notify=None):
     videoprocessor = VideoProcessor(infile, target, config, tagging_info=tagging_info, notify=notify)
     machine = Machine(model=videoprocessor, initial='initialised')
 
@@ -263,14 +264,27 @@ def main(infile, target, config, tagging_info=None, notify=None):
     machine.add_transition(trigger='delete', source=['renamed', 'postprocessed', 'moved', 'copied'], dest='deleted',
                            conditions=['conversion_success', 'has_delete'])
 
-    machine.add_transition(trigger='refresh', source=['processed', 'tagged', 'deployed', 'moved', 'copied', 'deleted', 'renamed'],
+    machine.add_transition(trigger='refresh',
+                           source=['processed', 'tagged', 'deployed', 'moved', 'copied', 'deleted', 'renamed'],
                            conditions=['conversion_success', 'has_refresher'], dest='refreshed')
 
     machine.add_transition(trigger='finish',
-                           source=['processed', 'tagged', 'postprocessed', 'refreshed', 'moved', 'copied', 'deleted'],
+                           source=['processed', 'tagged', 'postprocessed', 'refreshed', 'moved', 'copied', 'deleted', 'renamed'],
                            dest='finished')
 
     return videoprocessor
+
+
+def start_machine(VP):
+    VP.process()
+    VP.tag()
+    VP.postprocess()
+    VP.rename()
+    VP.copy_file()
+    VP.move_file()
+    VP.delete()
+    VP.refresh()
+    VP.finish()
 
 
 if __name__ == '__main__':
@@ -289,7 +303,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = main(infile=desktop, config=configname, target=target, tagging_info=tagging_info, notify=['plex'])
+    VP = build_machine(infile=desktop, config=configname, target=target, tagging_info=tagging_info, notify=['plex'])
 
     VP.process()
     VP.tag()

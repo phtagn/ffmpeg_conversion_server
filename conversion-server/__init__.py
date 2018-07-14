@@ -4,7 +4,8 @@ import os
 import sys
 import logging
 
-log = logging.getLogger('waitress')
+#log = logging.getLogger('waitress')
+log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 sh = logging.StreamHandler(sys.stdout)
 sh.setLevel(logging.DEBUG)
@@ -79,10 +80,10 @@ def create_app():
             target = content.get('target')
             tagging_info = content.get('tagging_info')
 
-            VP = Videoprocessor.MachineFactory.get(infile=inputfile, config=config, target=target,
+            VP = Videoprocessor.build_machine(infile=inputfile, config=config, target=target,
                                                    tagging_info=tagging_info)
 
-            p = Process(target=Videoprocessor.process, args=(VP,))
+            p = Process(target=Videoprocessor.start_machine, args=(VP,))
             p.start()
             return jsonify({'Response': True})
 
@@ -94,5 +95,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-    # app.run(use_debugger=True, use_reloader=True)
+    app = create_app()
+    app.run(use_debugger=True, use_reloader=True)
