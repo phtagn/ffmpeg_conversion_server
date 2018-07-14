@@ -1,8 +1,7 @@
-from converter_v2.streamformats import StreamFormatFactory
-from converter_v2.containers import Container
-from converter_v2.streamoptions import Language, MetadataOption, Disposition
-from converter_v2.streams import StreamFactory, VideoStream, AudioStream, SubtitleStream
-from converter_v2.encoders import _FFMpegCodec, Encoders, EncoderFactory
+from converter.containers import Container
+from converter.streamoptions import Language, MetadataOption, Disposition
+from converter.streams import StreamFactory, VideoStream, AudioStream, SubtitleStream
+from converter.encoders import EncoderFactory
 from typing import List
 import logging
 from copy import copy
@@ -24,8 +23,8 @@ class OptionBuilder(object):
         self.few_audio_tracks = True
         self.target_container = Container(target)
 
-    def generate_mapping_2(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
-                           compare_presets=None):
+    def generate_mapping(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
+                         compare_presets=None):
 
         for index, stream in self.container.streams.items():
 
@@ -96,9 +95,9 @@ class OptionBuilder(object):
             target_index = self.target_container.add_stream(target_stream, duplicate_check=False)
 
             if target_index is not None:
-                self.add_mapping_2(index, target_index)
+                self.add_mapping(index, target_index)
 
-    def add_mapping_2(self, source_index, target_index):
+    def add_mapping(self, source_index, target_index):
 
         try:
             stream = self.container.streams[source_index]
@@ -138,10 +137,6 @@ class OptionBuilder(object):
     #
     #     if len(audio_disp[1]) == 0 and audio_disp[0]:
     #
-    @staticmethod
-    def get_best_encoder(*encoders, stream_format):
-        l = [enc for enc in encoders if enc.produces == stream_format]
-        return sorted(l, key=lambda enc: enc.score, reverse=True)[0]
 
     def prepare_encoders(self, factory: EncoderFactory, encoder_options, preferred_encoders: dict = None):
         video_counter = 0
@@ -191,49 +186,6 @@ class OptionBuilder(object):
 
         output.extend(['-f', self.target_container.format])
         log.debug(' '.join(output))
-        return output
-
-    def generate_options_2(self, encoders: Encoders) -> list:
-        if not self.mapping:
-            raise Exception('Nothing in mapping')
-        video_counter = 0
-        audio_counter = 0
-        subtitle_counter = 0
-        output = []
-
-        log.debug(str(self))
-        for m in self.mapping:
-            source_index, target_index = m
-            target_stream = self.target_container.streams[target_index]
-            stream = self.container.streams[source_index]
-
-            fmt = StreamFormatFactory.get_format(target_stream.codec.value)
-            options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
-
-            if stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
-                encoder = fmt.get_encoder('copy')
-            else:
-                encoder = fmt.get_encoder('default')
-
-            for _enc in encoders.encoders:
-                if _enc.__class__ == encoder.__class__:
-                    encoder = _enc
-                    break
-
-            encoder.add_option(*target_stream.options)
-
-            output.extend(['-map', f'0:{source_index}'])
-            if isinstance(stream, VideoStream):
-                output.extend(encoder.parse(video_counter))
-                video_counter += 1
-            elif isinstance(stream, AudioStream):
-                output.extend(encoder.parse(audio_counter))
-                audio_counter += 1
-            elif isinstance(stream, SubtitleStream):
-                output.extend(encoder.parse(subtitle_counter))
-                subtitle_counter += 1
-
-        output.extend(['-f', self.target_container.format])
         return output
 
     def __str__(self):

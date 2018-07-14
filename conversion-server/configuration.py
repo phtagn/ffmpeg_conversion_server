@@ -7,12 +7,10 @@ from configuration_mod.defaultconfig import configspec
 import os
 from helpers import languagecode
 
-
-
 log = logging.getLogger(__name__)
 
 
-class cfgmgr(object):
+class CfgMgr(object):
     def __init__(self):
         self._usercfg = None
         self._validator = validate.Validator()
@@ -63,7 +61,7 @@ class cfgmgr(object):
         """
         if overrides:
             override_settings = ConfigObj(overrides, configspec=configspec, encoding='UTF8', default_encoding='UTF8',
-                                      write_empty_values=False)
+                                          write_empty_values=False)
 
             r = override_settings.validate(self._validator, preserve_errors=True)
 
@@ -86,7 +84,7 @@ class cfgmgr(object):
 
                 if isinstance(r, dict):
                     raise ConfigException(output, self._usercfg)
-                usersettings.walk(self.properNone)
+                usersettings.walk(self.proper_none)
 
                 self._usercfg = usersettings
                 self.fixafewthings()
@@ -112,8 +110,8 @@ class cfgmgr(object):
             return output
 
         for section in self._usercfg['Containers']:
-
-            # Make sure that vodecs are only mentionned once, and that there are no aliases the program would not understand
+            # Make sure that codecs are only mentioned once,
+            # and that there are no aliases the program would not understand
 
             self._usercfg['Containers'][section]['video']['accepted_track_formats'] = getalias(
                 self._usercfg['Containers'][section]['video']['accepted_track_formats'])
@@ -128,9 +126,8 @@ class cfgmgr(object):
         for t in ['audio', 'subtitle']:
             self._usercfg['Languages'][t] = languagecode.validate(self._usercfg['Languages'][t])
 
-
     @staticmethod
-    def properNone(section, key):
+    def proper_none(section, key):
         val = section[key]
         newval = val
         if val == 'None' or 0:
@@ -163,9 +160,7 @@ class ConfigException(Exception):
 
 
 if __name__ == '__main__':
-#    toto = {'TrackFormats': {'theora': {'max_bitrate': '1080'}}}
-    cm = cfgmgr()
-    cm.savedefaults()
-#    cm.load('defaults.ini', overrides=toto)
 
-#    print(tf)
+    cm = CfgMgr()
+    cm.savedefaults()
+

@@ -1,6 +1,6 @@
 import json
 import locale
-from converter_v2.streamoptions import *
+from converter.streamoptions import *
 
 log = logging.getLogger(__name__)
 

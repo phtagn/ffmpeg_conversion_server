@@ -8,12 +8,11 @@ import re
 import signal
 from subprocess import Popen, PIPE
 from typing import Union
-import converter.source
-from parsers.parsers import ParserFactory
+from converter.parsers import FFprobeParser
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 console_encoding = locale.getdefaultlocale()[1] or 'UTF-8'
 
 
@@ -97,12 +96,8 @@ class FFMpeg(object):
 
         self.hwaccels = []
 
-        self.encoders = {'video': [],
-                         'audio': [],
-                         'subtitle': []}
-        self.decoders = {'video': [],
-                         'audio': [],
-                         'subtitle': []}
+        self.encoders = []
+        self.decoders = []
 
         self._getcapabilities()
 
@@ -118,14 +113,14 @@ class FFMpeg(object):
             else:
                 return None
 
-        p = self._spawn([self.ffmpeg_path, '-v', 0, '-codecs'])
+        p = self._spawn([self.ffmpeg_path, '-v', 0, '-encoders'])
         stdout, _ = p.communicate()
         stdout = stdout.decode(console_encoding, errors='ignore')
 
         start = False
         for line in stdout.split('\n'):
             theline = line.strip()
-            if theline == '-------':
+            if theline == '------':
                 start = True
                 continue
             if start:
@@ -133,12 +128,27 @@ class FFMpeg(object):
                     codectype, codecname, *_ = re.split(r' ', theline)
                 except ValueError:
                     pass
-                if codectype[1] == 'E':
-                    if sortcodec(codectype[2]):
-                        self.encoders[sortcodec(codectype[2])].append(codecname)
-                if codectype[0] == 'D':
-                    if sortcodec(codectype[2]):
-                        self.decoders[sortcodec(codectype[2])].append(codecname)
+                if codectype[0] in ['V', 'A', 'S']:
+                    self.encoders.append(codecname)
+
+
+        p = self._spawn([self.ffmpeg_path, '-v', 0, '-decoders'])
+        stdout, _ = p.communicate()
+        stdout = stdout.decode(console_encoding, errors='ignore')
+
+        start = False
+        for line in stdout.split('\n'):
+            theline = line.strip()
+            if theline == '------':
+                start = True
+                continue
+            if start:
+                try:
+                    codectype, codecname, *_ = re.split(r' ', theline)
+                except ValueError:
+                    pass
+                if codectype[0] in ['V', 'A', 'S']:
+                    self.decoders.append(codecname)
 
     @staticmethod
     def _spawn(cmds):
@@ -148,12 +158,12 @@ class FFMpeg(object):
                 clean_cmds.append(str(cmd))
             cmds = clean_cmds
         except:
-            logger.exception("There was an error making all command line parameters a string")
-        logger.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
+            log.exception("There was an error making all command line parameters a string")
+        log.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
         return Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                      close_fds=(os.name != 'nt'), startupinfo=None)
 
-    def probe(self, fname, posters_as_video=True) -> Union[converter.source.SourceContainer, None]:
+    def probe(self, fname, posters_as_video=True) -> FFprobeParser:
         """
         Examine the media file and determine its format and media streams.
         Returns the MediaInfo object, or None if the specified file is
@@ -185,9 +195,9 @@ class FFMpeg(object):
                          '-show_format', '-show_streams', '-hide_banner', '-print_format', 'json', fname])
         stdout_data, _ = p.communicate()
         stdout_data = stdout_data.decode(console_encoding, errors='ignore')
-        containerinfo = converter.source.SourceContainerFactory.fromparser(ParserFactory.get_parser('ffprobe', stdout_data))
+        parser = FFprobeParser(stdout_data)
 
-        return containerinfo
+        return parser
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """
@@ -249,6 +259,7 @@ class FFMpeg(object):
         buf = ''
         total_output = ''
         pat = re.compile(r'time=([0-9.:]+) ')
+
         while True:
             if timeout:
                 signal.alarm(timeout)

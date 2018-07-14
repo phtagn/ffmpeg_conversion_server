@@ -1,7 +1,5 @@
-import copy
-from typing import Union, Optional, List
-from converter_v2.encoders import SubtitleCopy
-from converter_v2.streams import AudioStream, VideoStream, SubtitleStream
+from typing import Union, Optional
+from converter.streams import AudioStream, VideoStream, SubtitleStream
 import logging
 
 log = logging.getLogger(__name__)
@@ -23,13 +21,7 @@ class Container(object):
 
     def add_stream(self, stream: Union[AudioStream, VideoStream, SubtitleStream],
                    stream_number: Optional[int] = None, duplicate_check=False) -> int:
-        """
-        Add a stream to the list of streams in the Container. Streams can be with a specified stream
-        number, or the method will insert at the next available stream number.
-        :param stream: A concrete instance of Stream (VideoStream, AudioStream or SubtitleStream)
-        :param stream_number: optional, insert the stream with the specified stream number
-        :return: the stream number where the stream was inserted
-        """
+
         assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
         if not duplicate_check or not self.is_duplicate(stream):
             if stream_number is not None:
@@ -66,6 +58,7 @@ class Container(object):
                     return True
 
         return False
+
 
 class ContainerFactory(object):
 

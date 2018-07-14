@@ -1,175 +1,99 @@
-from typing import Union, List
+from abc import ABC
+from converter.streamoptions import *
+import logging
 
-from converter.formats import FormatFactory
+log = logging.getLogger(__name__)
 
 
+class Stream(ABC):
+    """
+    Generic stream class, it is not to be instantiated directly. Use concrete classes VideoStream, AudioStream and
+    SubtitleStream
+    """
+    supported_options = []
+    kind = ''
 
-class Stream(object):
-    pass
+    def __init__(self, codec: Codec):
+        assert isinstance(codec, Codec)
+        self._options = Options()
+        self.codec = codec
+
+    def add_options(self, *_options):
+        """Add options to the options pool. Reject options if they are not supported.
+        """
+        for _opt in _options:
+            if type(_opt) in self.supported_options and _opt.value is not None:
+                self._options.add_option(_opt, unique=True)
+            else:
+                log.warning('Option %s was rejected because unsupported by %s', str(_opt),
+                            self.__class__.__name__)
+
+    @property
+    def options(self):
+        return self._options
+
+    def __eq__(self, other):
+        """Compares streams by comparing the value of options
+        attached to them. IMPORTANT: If the option is missing in other, a match will be
+        assumed and the comparison will return True. This is a design decision
+        so that when building streams from templates, you don't have to specify every single option
+        present in a source stream built from a ffprobe."""
+
+        if not isinstance(other, type(self)):
+            return False
+
+        if self.codec != other.codec:
+            return False
+
+        for s_opt in self.options.options:
+            if not other.options.has_option(s_opt):
+                continue
+            if not self.options.contains_subset(other.options):
+                return False
+
+        return True
+
+    def __str__(self):
+        output = {_opt.__class.__name: _opt.value for _opt in self.options.options}
+        return str(output)
+
+    def __hash__(self):
+        return hash(self.options)
 
 
 class VideoStream(Stream):
-    def __init__(self,
-                 codec,
-                 pix_fmt,
-                 bitrate,
-                 height,
-                 width,
-                 profile,
-                 level,
-                 disposition):
-
-        self.codec = codec
-        self.pix_fmt = pix_fmt
-        self.bitrate = bitrate
-        self.height = height
-        self.width = width
-        self.profile = profile
-        self.level = level
-        self.disposition = disposition
-        self.type = 'video'
-
-    def __eq__(self, other):
-        if not isinstance(other, VideoStream):
-            return False
-
-        if (self.codec == other.codec and
-            self.pix_fmt == other.pix_fmt and
-            self.bitrate == other.bitrate and
-            self.height == other.height and
-            self.width == other.width and
-            self.profile == other.profile and
-            self.level == other.level):
-            return True
-
-        return False
-
-    def __ne__(self, other):
-        if not isinstance(other, VideoStream):
-            return True
-
-        if (self.codec != other.codec or
-            self.pix_fmt != other.pix_fmt or
-            self.bitrate != other.bitrate or
-            self.height != other.height or
-            self.width != other.width or
-            self.profile != other.profile or
-            self.level != other.level):
-            return True
-
-        return False
-
-    def __str__(self):
-        return f'Codec: {self.codec}\n' \
-        f'Bitrate: {self.bitrate}'
+    supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile, Tag]
+    kind = 'video'
 
 
 class AudioStream(Stream):
-
-    def __init__(self, codec, channels, bitrate, language, disposition):
-        self.language = language
-        self.channels = channels
-        self.bitrate = bitrate
-        self.codec = codec
-        self.disposition = disposition
-        self.type = 'audio'
-
-    def __eq__(self, other):
-        if not isinstance(other, AudioStream):
-            return False
-
-        if (self.codec == other.codec and
-                self.language == other.language and
-                self.channels == other.channels and
-                self.bitrate == other.bitrate):
-            return True
-
-        return False
-
-    def __ne__(self, other):
-        if not isinstance(other, AudioStream):
-            return True
-
-        if (self.codec != other.codec or
-                self.language != other.language or
-                self.channels != other.channels or
-                self.bitrate != other.bitrate):
-            return True
-
-        return False
+    supported_options = [Codec, Channels, Language, Disposition, Bitrate, Tag]
+    kind = 'audio'
 
 
 class SubtitleStream(Stream):
-
-    def __init__(self, codec, language, disposition):
-        self.codec = codec
-        self.language = language
-        self.disposition = disposition
-        self.type = 'subtitle'
-
-    def __eq__(self, other):
-        if not isinstance(other, SubtitleStream):
-            return False
-
-        if (self.codec == other.codec and
-            self.language == other.language):
-            return True
-
-        return False
+    supported_options = [Codec, Language, Disposition, Tag]
+    kind = 'subtitle'
 
 
-class Container(object):
+class StreamFactory(object):
 
-    def __init__(self, format):
-        self._videostreams = []
-        self._audiostreams = []
-        self._subtitlestreams = []
-        self._format = format
+    @classmethod
+    def get_stream_by_type(cls, stream: Stream, codec) -> Union[VideoStream, AudioStream, SubtitleStream]:
+        assert isinstance(stream, (VideoStream, AudioStream, SubtitleStream))
+        if isinstance(stream, VideoStream):
+            return VideoStream(codec)
+        elif isinstance(stream, AudioStream):
+            return AudioStream(codec)
+        elif isinstance(stream, SubtitleStream):
+            return SubtitleStream(codec)
 
-    @property
-    def videostreams(self):
-        return self._videostreams
-
-    @property
-    def audiostreams(self):
-        return self._audiostreams
-
-    @property
-    def subtitlestreams(self):
-        return self._subtitlestreams
-
-    @property
-    def streams(self):
-        return [stream for streamlist in [self.videostreams, self.audiostreams, self.subtitlestreams] for stream in
-                streamlist]
-
-    def add_stream(self, stream):
-        pass
-
-
-    @property
-    def format(self):
-        return FormatFactory.get_format(self._format)
-
-    def get_streams_from_property(self, typ: str, **kwargs) -> List[Union[VideoStream, AudioStream, SubtitleStream]]:
-        if typ not in ['video', 'audio', 'subtitle']:
-            raise Exception(f'Type f{typ} is not one of video, audio or subtitle')
-        s = []
-
-        if len(kwargs) > 1:
-            raise Exception('Only 1 criterion is allowed')
-
-        k, v = list(kwargs.items())[0]
-
-        if typ == 'video':
-            streams = self.videostreams
-        elif typ == 'audio':
-            streams = self.audiostreams
-        elif typ == 'subtitle':
-            streams = self.subtitlestreams
-
-        for stream in streams:
-            if hasattr(stream, k) and getattr(stream, k) == v:
-                s.append(stream)
-
-        return s
+    @classmethod
+    def get_stream_by_name(cls, name, codec) -> Stream:
+        assert name in ['audio', 'video', 'subtitle']
+        if name == 'video':
+            return VideoStream(codec)
+        elif name == 'audio':
+            return AudioStream(codec)
+        elif name == 'subtitle':
+            return SubtitleStream(codec)

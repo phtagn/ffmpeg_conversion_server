@@ -1,293 +1,259 @@
-from converter import encoders
-from typing import Dict
+from converter.encoders import *
+import logging
 
+log = logging.getLogger(__name__)
 
 class BaseStreamFormat(object):
     encoders = {}
     default_encoder = ''
     name = ''
+    supported_options = []
 
     @classmethod
-    def getEncoder(cls, encoder: str = 'default'):
-        """
-        Returns an encoder from avcodecs. The encoder is instantiated with encoderoptions.
-        If encoderoptions are invalid, they are disregaarded by the encoder.
-        If encoder is not specified, returns the default encoder instantiated with encoderoptions.
-        :param encoderoptions: Dict of options to pass the encoder
-        :param encoder: str, name of the encoder
-        :return: avcodecs.codec
-        """
-        if encoder == 'default':
-            return cls.encoders[cls.default_encoder]
+    def get_encoder(cls, encoder, *options):
+        if encoder and encoder.lower() == 'default' or not encoder:
+            return cls.encoders[cls.default_encoder](*options)
         elif encoder in cls.encoders:
-            return cls.encoders[encoder]
+            return cls.encoders[encoder](*options)
         else:
             raise Exception(f'Encoder {encoder} not in {", ".join(cls.encoders)}')
 
 
-class VideoStreamFormat(BaseStreamFormat):
-    format_options = {
-        'max_bitrate': 'integer(default=1500)',
-        'filter': 'string(default=None)',
-        'pix_fmts': 'string(default=None)',
-        'max_width': 'integer(default=1280)',
-        'max_height': 'integer(default=720)',
-        'mode': 'string(default=None)'
-    }
+class VideoStream(BaseStreamFormat):
+    supported_options = [Height, Width, Codec, Bitrate, PixFmt, Tag]
 
 
-class AudioStreamFormat(BaseStreamFormat):
-    format_options = {
-        'max_channels': 'integer(default=2)',
-        'max_bitrate': 'integer(default=200)',
-        'filter': 'string(default=None)'
-    }
+class AudioStream(BaseStreamFormat):
+    supported_options = [Codec, Bitrate, Channels, Language]
 
 
-class SubtitleStreamFormat(BaseStreamFormat):
-    format_options = {'encoding': 'string(default=UTF-8)'}
+class SubtitleStream(BaseStreamFormat):
+    supported_options = [Codec, Language]
 
 
-class TheoraStreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'theora': encoders.TheoraCodec}
-
+class TheoraStream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'theora': Theora}
     default_encoder = 'theora'
     name = 'theora'
 
 
-class DivxStreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'divx': encoders.DivxCodec}
+class DivxStream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'divx': Divx}
     default_encoder = 'divx'
     name = 'divx'
 
 
-class Vp8StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'vp8': encoders.Vp8Codec}
+class Vp8Stream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'vp8': Vp8}
     default_encoder = 'vp8'
     name = 'vp8'
 
 
-class H263StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'h263': encoders.H263Codec}
+class H263Stream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'h263': H263}
     default_encoder = 'h263'
     name = 'h263'
 
 
-class FlvStreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'flv': encoders.FlvCodec}
+class FlvStream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'flv': Flv}
     default_encoder = 'flv'
     name = 'flv'
 
 
-class Mpeg1StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'mpeg1': encoders.Mpeg1Codec}
+class Mpeg1Stream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'mpeg1': Mpeg1}
     default_encoder = 'mpeg1'
     name = 'mpeg1'
 
 
-class Mpeg2StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'mpeg2': encoders.Mpeg2Codec}
+class Mpeg2Stream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'mpeg2': Mpeg2}
     default_encoder = 'mpeg2'
     name = 'mpeg2'
 
 
-class H264StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'h264': encoders.H264Codec,
-                'h264qsv': encoders.H264QSV,
-                'h264vaapi': encoders.H264VAAPI,
-                'nvenc_h264': encoders.NVEncH264
+class H264Stream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'h264': H264,
+                'h264qsv': H264QSV,
+                'h264vaapi': H264VAAPI,
+                'nvenc_h264': NVEncH264
                 }
-
+    supported_options = VideoStream.supported_options.copy()
+    supported_options.extend([Profile, Level])
     default_encoder = 'h264'
     name = 'h264'
 
-    format_options = {
-        'encoder': 'option(h264, h264qsv, h264vaapi, nvenc_h264, default=h264)',
-        'profiles': 'force_list(default=None)',
-        'pix_fmts': 'force_list(default=None)',
-        'max_level': 'float(default=3.0)'
-    }
 
-    format_options.update(VideoStreamFormat.format_options.copy())
-
-
-class H265StreamFormat(VideoStreamFormat):
-    encoders = {'copy': encoders.VideoCopyEncoder,
-                'h265': encoders.H265Codec,
-                'hevcsqv': encoders.HEVCQSV,
-                'nvenc_h265': encoders.NVEncH265
+class HevcStream(VideoStream):
+    encoders = {'copy': VideoCopy,
+                'h265': H265,
+                'hevcsqv': HEVCQSV,
+                'nvenc_h265': NVEncH265
                 }
-
+    supported_options = VideoStream.supported_options.copy()
+    supported_options.extend([Profile, Level])
     default_encoder = 'h265'
     name = 'hevc'
-    format_options = {
-        'encoder': 'option(h265, hevcqsv, nvenc_h265, default=h265)',
-        'preset': 'string(default=None)',
-        'profiles': 'force_list(default=None)',
-        'level': 'float(default=3.0)'
-    }
-
-    format_options.update(VideoStreamFormat.format_options.copy())
 
 
-class VorbisStreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'vorbis': encoders.VorbisCodec}
+class VorbisStream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'vorbis': Vorbis}
     default_encoder = 'vorbis'
     name = 'vorbis'
 
 
-class Mp3StreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'mp3': encoders.Mp3Codec}
+class Mp3Stream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'mp3': Mp3}
     default_encoder = 'mp3'
     name = 'mp3'
 
 
-class Mp2StreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'mp2': encoders.Mp2Codec}
+class Mp2Stream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'mp2': Mp2}
     default_encoder = 'mp2'
     name = 'mp2'
 
 
-class Eac3StreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'eac3': encoders.EAc3Codec}
+class Eac3Stream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'eac3': EAc3}
     default_encoder = 'eac3'
     name = 'eac3'
 
 
-class Ac3StreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'ac3': encoders.Ac3Codec}
+class Ac3Stream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'ac3': Ac3}
     default_encoder = 'ac3'
     name = 'ac3'
-    format_options = AudioStreamFormat.format_options.copy()
-    format_options.update({'max_bitrate': 'integer(default=384)',
-                           'max_channels': 'integer(default=6)'})
 
 
-class DtsStreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'dts': encoders.DtsCodec}
+class DtsStream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'dts': Dts}
     default_encoder = 'dts'
     name = 'dts'
 
 
-class FlacStreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'flac': encoders.FlacCodec}
+class FlacStream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'flac': Flac}
     default_encoder = 'flac'
     name = 'flac'
 
 
-class AacStreamFormat(AudioStreamFormat):
-    encoders = {'copy': encoders.AudioCopyEncoder,
-                'aac': encoders.AacCodec,
-                'fdkaac': encoders.FdkAacCodec,
-                'faac': encoders.FAacCodec}
+class AacStream(AudioStream):
+    encoders = {'copy': AudioCopy,
+                'aac': Aac,
+                'fdkaac': FdkAac,
+                'faac': Faac}
 
     default_encoder = 'aac'
     name = 'aac'
 
 
-class MovtextStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'mov_text': encoders.MOVTextCodec}
+class MovtextStream(SubtitleStream):
+    encoders = {'copy': AudioCopy,
+                'mov_text': MOVText}
     default_encoder = 'mov_text'
     name = 'mov_text'
 
 
-class SrtStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'srt': encoders.SrtCodec}
+class SrtStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'srt': Srt}
     default_encoder = 'srt'
     name = 'srt'
 
 
-class SSAStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'ssa': encoders.SSA}
+class SSAStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'ssa': SSA}
     default_encoder = 'ssa'
     name = 'ssa'
 
 
-class SubRipStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'subrip': encoders.SubRip}
+class SubRipStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'subrip': SubRip}
     default_encoder = 'subrip'
     name = 'subrip'
 
 
-class DvdSubStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'dvdsub': encoders.DVDSub}
+class DvdSubStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'dvdsub': DVDSub}
     default_encoder = 'dvdsub'
     name = 'dvdsub'
 
 
-class DVBSubStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'dvbsub': encoders.DVBSub}
+class DVBSubStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'dvbsub': DVBSub}
     default_encoder = 'dvbsub'
     name = 'dvbsub'
 
 
-class WebVTTStreamFormat(SubtitleStreamFormat):
-    encoders = {'copy': encoders.SubtitleCopyEncoder,
-                'webvtt': encoders.WebVTTCodec}
+class WebVTTStream(SubtitleStream):
+    encoders = {'copy': SubtitleCopy,
+                'webvtt': WebVTT}
     default_encoder = 'webvtt'
     name = 'webvtt'
 
 
 class StreamFormatFactory(object):
     formats = {
-        'theora': TheoraStreamFormat,
-        'h264': H264StreamFormat,
-        'x264': H264StreamFormat,  # Alias
-        'h265': H265StreamFormat,
-        'hevc': H265StreamFormat,  # Alias
-        'divx': DivxStreamFormat,
-        'vp8': Vp8StreamFormat,
-        'h263': H263StreamFormat,
-        'flv': FlvStreamFormat,
-        'mpeg1': Mpeg1StreamFormat,
-        'mpeg2': Mpeg2StreamFormat,
+        'theora': TheoraStream,
+        'h264': H264Stream,
+        'x264': H264Stream,  # Alias
+        'h265': HevcStream,
+        'hevc': HevcStream,  # Alias
+        'divx': DivxStream,
+        'vp8': Vp8Stream,
+        'h263': H263Stream,
+        'flv': FlvStream,
+        'mpeg1': Mpeg1Stream,
+        'mpeg2': Mpeg2Stream,
 
-        'vorbis': VorbisStreamFormat,
-        'aac': AacStreamFormat,
-        'mp3': Mp3StreamFormat,
-        'mp2': Mp2StreamFormat,
-        'ac3': Ac3StreamFormat,
-        'eac3': Eac3StreamFormat,
-        'dts': DtsStreamFormat,
-        'flac': FlacStreamFormat,
+        'vorbis': VorbisStream,
+        'aac': AacStream,
+        'mp3': Mp3Stream,
+        'mp2': Mp2Stream,
+        'ac3': Ac3Stream,
+        'eac3': Eac3Stream,
+        'dts': DtsStream,
+        'flac': FlacStream,
 
-        'mov_text': MovtextStreamFormat,
-        'srt': SrtStreamFormat,
-        'ssa': SSAStreamFormat,
-        'subrip': SubRipStreamFormat,
-        'dvdsub': DvdSubStreamFormat,
-        'dvbsub': DVBSubStreamFormat,
-        'webvtt': WebVTTStreamFormat
+        'mov_text': MovtextStream,
+        'srt': SrtStream,
+        'ssa': SSAStream,
+        'ass': SSAStream,
+        'subrip': SubRipStream,
+        'dvdsub': DvdSubStream,
+        'dvbsub': DVBSubStream,
+        'webvtt': WebVTTStream,
+
     }
 
     @classmethod
-    def get_format(cls, fmt):
-        if fmt not in cls.formats:
+    def get_format(cls, fmt: str):
+        if fmt.lower() not in cls.formats:
             raise MissingFormatExcetption(
                 f'Format {fmt} is unsupported. Available formats are {", ".join(cls.formats.keys())}')
 
-        return cls.formats[fmt]
+        return cls.formats[fmt.lower()]
 
 
 class MissingFormatExcetption(Exception):

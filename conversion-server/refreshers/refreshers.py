@@ -1,16 +1,12 @@
-import os
-import sys
 from abc import ABCMeta, abstractmethod
 import requests
 import logging
-
 
 log = logging.getLogger(__name__)
 
 
 class RefreshError(Exception):
     def __init__(self, name, url, error):
-
         super(RefreshError, self).__init__(error)
 
         self.url = url
@@ -27,11 +23,6 @@ class RefreshError(Exception):
 
 class Refresher(metaclass=ABCMeta):
     name = ''
-    defaults = {'host': 'string(default=localhost)',
-                'ssl': 'boolean(default=False)',
-                'webroot': 'string(default=None)',
-                'refresh': 'boolean(default=False)'}
-
 
     @abstractmethod
     def refresh(self, param):
@@ -40,11 +31,6 @@ class Refresher(metaclass=ABCMeta):
 
 class SickRage(Refresher):
     name = 'sickrage'
-    defaultport = '8081'
-    defaults = Refresher.defaults.copy()
-    defaults.update({'port': 'integer(default=8081)',
-                     'api_key': 'string(default=None)'
-                     })
 
     def __init__(self, **kwargs):
         essential = ['api_key', 'host', 'port']
@@ -63,7 +49,6 @@ class SickRage(Refresher):
         else:
             self.protocol = 'http://'
 
-
         if kwargs.get('webroot', None):
             if kwargs['webroot'].endswith('/'):
                 self.webroot = kwargs['webroot']
@@ -73,7 +58,6 @@ class SickRage(Refresher):
             self.webroot = '/'
 
         self.url = f'{self.protocol}{self.host}:{self.port}{self.webroot}api/{self.api_key}'
-
 
     def refresh(self, showid):
         if not self.api_key:
@@ -95,10 +79,6 @@ class SickRage(Refresher):
 
 class Plex(Refresher):
     name = 'plex'
-    defaults = Refresher.defaults.copy()
-    defaults.update({'port': 'integer(default=32400)',
-                     'token': 'string(default=None)'
-                     })
 
     def __init__(self, **kwargs):
         essential = ['token', 'host', 'port']
@@ -136,7 +116,6 @@ class Plex(Refresher):
         :return: None
         """
 
-
         from xml.dom import minidom
 
         refresh_url = '%s/%%s/refresh' % self.url
@@ -145,7 +124,7 @@ class Plex(Refresher):
         try:
             r = requests.get(self.url, params=payload)
         except Exception as e:
-            raise RefreshError('Plex', self.url, e.message)
+            raise RefreshError('Plex', self.url, e)
 
         if r.status_code == 200:
             xml_sections = minidom.parseString(r.text)
@@ -156,6 +135,9 @@ class Plex(Refresher):
                     r = requests.get(refresh_url % s.getAttribute('key'), payload)
                     if r.status_code == 200:
                         print("refresh successful")
+        else:
+            log.error('Plex connection error with status code %s', str(r.status_code))
+
 
 
 class RefresherFactory(object):
@@ -167,14 +149,3 @@ class RefresherFactory(object):
             if cls.Refreshers[r].name == name:
                 return cls.Refreshers[name](**kwargs)
         raise Exception('Refresher not supported at this time')
-
-if __name__ == '__main__':
-    host = 'router.cholli.org'
-
-    srs = {'api_key': '3aaff65b7087dfebc0ef3c6b691d6ee8', 'host': host, 'ssl': True, 'webroot': '/sickrage', 'port': 443}
-    SR = RefresherFactory.get_refesher('sickrage', **srs)
-    SR.refresh(75978)
-
-    plex = {'token': '2dhXxPdwHiztGtGXjHBS', 'host': host, 'port': 32400, 'ssl': True}
-    PL = RefresherFactory.get_refesher('plex', **plex)
-    PL.refresh('movie')

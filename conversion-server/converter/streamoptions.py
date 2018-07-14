@@ -264,7 +264,9 @@ class Tag(MetadataOption):
         super(Tag, self).parse(stream_type, stream_number)
         return [f'-tag:{self.stream_specifier}', f'{self.value}']
 
+
 OptionFactory.register_option(Tag)
+
 
 class Bitrate(IStreamValueOption):
     """Bitrate option, applies to video and audio streams"""
@@ -389,52 +391,6 @@ class Disposition(MetadataOption):
         return [f'-disposition:{self.stream_specifier}', str(self.value)]
 
 
-class Disposition2(MetadataOption):
-    """Sets the disposition for a stream.
-    This option overrides the disposition copied from the input stream. It is also possible to delete the disposition by setting it to 0.
-    The following dispositions are recognized:
-    default, dub, original, comment, lyrics, karaoke, forced, hearing_impaired, visual_impaired, clean_effects
-    attached_pic, captions, descriptions, dependent, metadata"""
-    name = 'disposition'
-
-    def __init__(self, val: dict):
-        super(Disposition2, self).__init__()
-        self.value = {}
-        for k in val:
-            if k.lower() not in ['default', 'dub', 'original', 'comment', 'lyrics', 'karaoke', 'forced',
-                                 'hearing_impaired', 'visual_impaired', 'clean_effects', 'attached_pic', 'captions',
-                                 'descriptions', 'dependent', 'metadata']:
-                continue
-            else:
-                self.value.update({k: val[k]})
-
-    def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
-        r = []
-        super(Disposition, self).parse(stream_type, stream_number)
-        for k, v in self.value.items():
-            if v == 0:
-                if k == 'default':
-                    r.extend([f'-disposition:{self.stream_specifier}', 0])
-            if v == 1:
-                r.extend([f'-disposition:{self.stream_specifier}', k])
-
-        return r
-
-    def __eq__(self, other):
-        if isinstance(other, Disposition):
-            if self.value == other.value:
-                return True
-
-        return False
-
-    def __ne__(self, other):
-        if isinstance(other, Disposition):
-            if self.value == other.value:
-                return False
-
-        return True
-
-
 OptionFactory.register_option(Disposition)
 
 
@@ -484,7 +440,7 @@ class Level(IStreamValueOption):
         try:
             if float(val) > 0:
                 self.value = float(val)
-        except:
+        except ValueError:
             pass
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
@@ -515,7 +471,7 @@ class Filter(IStreamOption):
     def __init__(self, *filters):
         super(Filter, self).__init__()
         self._filters = []
-        self.add_filter()
+        self.add_filter(*filters)
 
     def add_filter(self, *filters):
         for f in filters:

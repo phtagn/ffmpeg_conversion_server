@@ -1,9 +1,9 @@
 # coding=utf-8
 from collections import OrderedDict
 from configobj import ConfigObj
-from converter_v2.encoders import EncoderFactory, _VideoCodec, _AudioCodec, _SubtitleCodec
-from converter_v2.streamformats import *
-from converter_v2.streamoptions import EncoderOption
+from converter.encoders import EncoderFactory, _VideoCodec, _AudioCodec, _SubtitleCodec
+from converter.streamformats import *
+from converter.streamoptions import EncoderOption
 
 exposed_options = {
     Bitrate.__name__: 'integer(default=-1)',
@@ -43,11 +43,9 @@ for codec in EncoderFactory._supported_codecs:
     elif codec.codec_name != 'copy':
         p.update({codec.produces: [codec.ffmpeg_codec_name]})
 
-
 for fmt in p:
     if len(p[fmt]) > 1:
         preferred_encoders[fmt] = f'string(default={p[fmt][0]})'
-
 
 encoders = {**videocodecs, **audiocodecs, **subtitlecodecs}
 
@@ -68,8 +66,23 @@ for fmt_name, fmt in StreamFormatFactory.formats.items():
                 elif issubclass(fmt, SubtitleStream):
                     subtitlestreams.update({fmt.__name__[:-6].lower(): optdict})
 
-
 streams = {**videostreams, **audiostreams, **subtitlestreams}
+
+refreshers = {
+    'plex': {'host': 'string(default=localhost)',
+             'ssl': 'boolean(default=False)',
+             'webroot': 'string(default=None)',
+             'refresh': 'boolean(default=False)',
+             'port': 'integer(default=32400)',
+             'token': 'string(default=None)'},
+
+    'sickrage': {'host': 'string(default=localhost)',
+                 'ssl': 'boolean(default=False)',
+                 'webroot': 'string(default=None)',
+                 'refresh': 'boolean(default=False)',
+                 'port': 'integer(default=32400)',
+                 'api_key': 'string(default=None)'}
+}
 
 defaultconfig = {
     'FFMPEG': {
@@ -93,7 +106,7 @@ defaultconfig = {
 
     'File': {
         'work_directory': 'string(default=None)',
-        'copy_to': 'force_list(default=None)',
+        'copy_to': 'string(default=None)',
         'move_to': 'string(default=None)',
         'delete_original': 'boolean(default=False)',
         'permissions': 'integer(default=777)'
@@ -103,22 +116,20 @@ defaultconfig = {
             'video': {
                 'accepted_track_formats': 'force_list(default=list(h264, h265, hevc))',
                 'default_format': 'string(default=hevc)',
-                'ignore_presets': 'boolean(default=True)'
+                'prefer_copy': 'boolean(default=True)'
             },
 
             'audio': {
                 'accepted_track_formats': 'force_list(default=list(aac, ac3))',
                 'default_format': 'string(default=aac)',
-                'audio_copy_original': 'boolean(default=False)',
-                'create_multiple_stereo_tracks': 'boolean(default=False)',
                 'force_create_tracks': 'force_list(default=None)',
-                'ignore_presets': 'boolean(default=True)'
+                'prefer_copy': 'boolean(default=True)'
             },
 
             'subtitle': {
                 'accepted_track_formats': 'force_list(default=list(mov_text))',
                 'default_format': 'string(default=mov_text)',
-                'ignore_presets': 'boolean(default=True)'
+                'prefer_copy': 'boolean(default=True)'
             },
 
             'post_processors': 'force_list(default=None)',
@@ -127,6 +138,7 @@ defaultconfig = {
         }},
     'StreamFormats': streams,
     'PreferredEncoders': preferred_encoders,
-    'EncoderOptions': encoders}
+    'EncoderOptions': encoders,
+    'Refreshers': refreshers}
 
 configspec = ConfigObj(defaultconfig, list_values=False)

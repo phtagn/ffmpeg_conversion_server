@@ -53,12 +53,12 @@ def create_app():
 
     @app.route('/config/default', methods=['GET'])
     def defaultconfig():
-        cfgmgr = configuration.cfgmgr()
+        cfgmgr = configuration.CfgMgr()
         return jsonify(cfgmgr.defaultconfig)
 
     @app.route('/config/<string:configfile>', methods=['GET'])
     def configfile(configfile):
-        cfgmgr = configuration.cfgmgr()
+        cfgmgr = configuration.CfgMgr()
 
         conf = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), 'config', configfile)
         if os.path.exists(conf):
