@@ -536,7 +536,8 @@ class UnsupportedOption(Exception):
 
 
 class Options(object):
-
+    """A list-like object that contains options. This is the common object taht hosts the options for streams
+    and encoders. It can be """
     def __init__(self):
         self.options = []
 
@@ -586,6 +587,10 @@ class Options(object):
         for me_opt in self.options:
             default = None
             for o_opt in other.get_option(me_opt.__class__):
+                # By design, MetadataOptions should not be considered incompatible.
+                if isinstance(o_opt, MetadataOption):
+                    continue
+
                 default = o_opt if not default else default
                 if isinstance(me_opt, IStreamValueOption):
                     if me_opt < o_opt:

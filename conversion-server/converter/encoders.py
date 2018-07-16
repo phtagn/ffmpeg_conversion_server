@@ -2,7 +2,12 @@
 from converter.streamoptions import *
 from typing import Union, List
 from abc import ABC
-
+"""
+converter.encoders.py
+Contains all encoders supported by the program. Encoders are designed to be the last step in the preparation process. 
+Options that have been determined by the program are added to the relevant encoder, and the encoder is then parsed to
+obtain a list of options that can be fed to Popen and ffmpeg.
+"""
 log = logging.getLogger(__name__)
 
 
@@ -20,10 +25,16 @@ class _FFMpegCodec(ABC):
     def __init__(self):
         self.options = Options()
 
-    def add_option(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption]):
-
+    def add_option(self, *options: Union[IStreamOption, IStreamValueOption, EncoderOption, MetadataOption]):
+        """
+        Adds the option to the encoder.
+        :param options: a decendent of IStreamOption, IStreamValueOption, EncoderOption or MetadataOption
+        :type options: IStreamOption, IStreamValueOption, EncoderOption, MetadataOption
+        :return:
+        :rtype:
+        """
         for option in options:
-            assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption))
+            assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption, MetadataOption))
             print(self.__class__.__name__)
             if type(option) in self.__class__.supported_options:
                 self.options.add_option(option)
