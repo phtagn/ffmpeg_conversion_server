@@ -1,3 +1,8 @@
+"""
+Module converter.streamoptions.py
+This module contains all the options that are handled by the program, although they are not necessarily exposed
+to the user. Options must conform to the IStreamOption interface. Each option must handle its validation internally.
+"""
 from helpers import languagecode
 import logging
 from abc import abstractmethod, ABCMeta
@@ -14,7 +19,8 @@ class IStreamOption(metaclass=ABCMeta):
     ffprobe_name = ''
     incompatible_with = []
 
-    """Interface for options that apply to streams. The constructor builds the stream specifier (e.g. a:0, v:1)."""
+    """Interface for options that apply to streams. The constructor builds the stream specifier (e.g. a:0, v:1).
+    """
 
     def __init__(self):
         self.value = None
@@ -23,10 +29,11 @@ class IStreamOption(metaclass=ABCMeta):
     @abstractmethod
     def parse(self, stream_type: str, stream_number: Union[None, int] = None) -> list:
         """
-
-        :param stream_type: str, the type of stream
-        :param stream_number:
-        :return:
+        This method handles the production of options for ffmpeg.
+        :param stream_type: the type of stream, namely audio, video or subtitle. This is used to determine
+        the stream specifier.
+        :param stream_number: an int representing the stream number
+        :return: a list of options that can be consumed by Popen and fed to ffmpeg.
         """
         if stream_type == 'a' or stream_type == 'audio':
             self.stream_specifier = 'a'
@@ -536,13 +543,24 @@ class UnsupportedOption(Exception):
 
 
 class Options(object):
-    """A list-like object that contains options. This is the common object taht hosts the options for streams
-    and encoders. It can be """
+    """A list-like object that contains options. This is the common object that hosts the options for streams
+    and encoders."""
     def __init__(self):
         self.options = []
 
     def add_option(self, opt, unique=False):
-
+        """
+        Method to add an option to the Options object. If unique is True, any new option will replace the
+        existing option. This is useful for streams which generally have a only have 1 option of each type (e.g.
+        a stream cannot have multiple bitrates).
+        When unique is set to False, options of the same type will be added to a list. This is useful to compare an option
+        against a set of multiple possible values using the incompatible_option method. For example, one can add
+        3 PixFmt options with values a, b, and c, and then compare another PixFmt object to those objects, if the PixFmt
+        object has a value of a, b, or c it will be validated.
+        :param opt: an option which must be a decendant of IStreamOption
+        :param unique: True or False, whether the Options collection should only accept 1 option of each type
+        :return: None
+        """
         if issubclass(opt.__class__, IStreamOption) and opt.value is not None:
             if not unique:
                 self.options.append(opt)
@@ -555,17 +573,18 @@ class Options(object):
             # log.debug('Option %s was rejected because of None value', str(opt))
 
     def get_option(self, option):
-
+        """Method to get the all option objects that matches a specific type."""
         for opt in self.options:
             if opt.__class__ == option:
                 yield opt
 
-    def del_option(self, option):
-        for opt in self.options:
-            if opt.__class__ == option:
-                self.options.remove(opt)
+    #def del_option(self, option):
+    #    for opt in self.options:
+    #        if opt.__class__ == option:
+    #            self.options.remove(opt)
 
     def get_unique_option(self, option):
+        """Method to get the first option object that matches a specific type."""
         for opt in self.options:
             if option == opt.__class__:
                 return opt
@@ -606,6 +625,12 @@ class Options(object):
         return incompatible_options
 
     def contains_subset(self, other):
+        """Method to figure out if an Options object contains a subset of another Options object.
+        This is useful because ffmpeg will automatically copy most options from the input stream unless instructed
+        not to do so. Therefore there is no need for an output stream to contain all of the options of an input stream
+        to be able to copy (remember that by design this converter avoids transcoding as much as possible).
+        For example, if the user wants to create an aac stream from an ac-3 stream, the user does not need ****TO BE CONTINUED
+        """
         if not isinstance(other, Options):
             return False
 
