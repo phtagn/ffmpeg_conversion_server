@@ -1,7 +1,7 @@
 # coding=utf-8
 from collections import OrderedDict
 from configobj import ConfigObj
-from converter.encoders import EncoderFactory, _VideoCodec, _AudioCodec, _SubtitleCodec
+from converter.encoders import Encoders, _VideoCodec, _AudioCodec, _SubtitleCodec
 from converter.streamformats import *
 from converter.streamoptions import EncoderOption
 
@@ -25,7 +25,7 @@ subtitlecodecs = OrderedDict()
 
 p = {}
 preferred_encoders = OrderedDict()
-for codec in EncoderFactory._supported_codecs:
+for codec in Encoders._supported_codecs:
     optdict = OrderedDict()
     for opt in codec.supported_options:
         if opt.__name__ in exposed_options and issubclass(opt, EncoderOption):

@@ -32,12 +32,12 @@ class Stream(ABC):
     def options(self):
         return self._options
 
-    def __eq__(self, other):
+    def is_duplicate(self, other):
         """Compares streams by comparing the value of options
-        attached to them. IMPORTANT: If the option is missing in other, a match will be
-        assumed and the comparison will return True. This is a design decision
-        so that when building streams from templates, you don't have to specify every single option
-        present in a source stream built from a ffprobe."""
+           attached to them. IMPORTANT: If the option is missing in other, a match will be
+           assumed and the comparison will return True. This is a design decision
+           so that when building streams from templates, you don't have to specify every single option
+           present in a source stream built from a ffprobe."""
 
         if not isinstance(other, type(self)):
             return False
@@ -53,16 +53,19 @@ class Stream(ABC):
 
         return True
 
+    def __eq__(self, other):
+        return self.__hash__() == other.__hash__()
+
     def __str__(self):
-        output = {_opt.__class.__name: _opt.value for _opt in self.options.options}
+        output = {_opt.__class.__name: _opt.value for _opt in self.options}
         return str(output)
 
     def __hash__(self):
-        return hash(self.options)
+        return hash(self.codec.__hash__() + self.options.options_no_metadata().__hash__())
 
 
 class VideoStream(Stream):
-    supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile, Tag]
+    supported_options = [Codec, PixFmt, Bitrate, Disposition, Height, Width, Level, Profile, Tag, Filter]
     kind = 'video'
 
 

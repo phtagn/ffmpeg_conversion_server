@@ -8,7 +8,6 @@ import logging
 from abc import abstractmethod, ABCMeta
 from typing import Union
 from inspect import isclass
-from collections import Counter
 from copy import copy
 
 log = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class IStreamOption(metaclass=ABCMeta):
         return f'{self.__class__.__name__}: {str(self.value)}'
 
     def __hash__(self):
-        return hash(self.value)
+        return hash(str(self))
 
 
 class MetadataOption(IStreamOption):
@@ -229,7 +228,7 @@ class Channels(IStreamValueOption):
 OptionFactory.register_option(Channels)
 
 
-class Language(MetadataOption):
+class Language(IStreamOption):
     """Language option, applies to audio and subtitle streams"""
     name = 'language'
     ffprobe_name = 'language'
@@ -398,6 +397,7 @@ class Disposition(MetadataOption):
         return [f'-disposition:{self.stream_specifier}', str(self.value)]
 
 
+
 OptionFactory.register_option(Disposition)
 
 
@@ -475,23 +475,18 @@ OptionFactory.register_option(Profile)
 
 class Filter(IStreamOption):
 
-    def __init__(self, *filters):
+    def __init__(self):
         super(Filter, self).__init__()
-        self._filters = []
-        self.add_filter(*filters)
+        self.value = []
 
     def add_filter(self, *filters):
         for f in filters:
             if isinstance(f, Filters):
-                self._filters.append(f)
-
-    @property
-    def filters(self):
-        return self._filters
+                self.value.append(f)
 
     def parse(self, stream_type: str, stream_number: Union[None, int] = None):
         super(Filter, self).parse(stream_type, stream_number)
-        values = [f.filter for f in self.filters]
+        values = [f.filter for f in self.value]
         print(';'.join(values))
         return [F'-filter:{self.stream_specifier}', ';'.join(values)]
 
@@ -503,20 +498,26 @@ class Filters:
 class Scale(Filters):
     name = 'scale'
 
-    def __init__(self, val: tuple):
+    def __init__(self, ih=None, iw=None, w=None, h=None):
         """
         Val is a tuple of height and width, see https://ffmpeg.org/ffmpeg-filters.html#scale-1
         :param val: tuple (width, height)
         :type val: tuple(int, int)
         """
-        if len(val) != 2:
-            raise Exception('Scale filter expects a tuple of width and height')
-        self.w = val[0]
-        self.h = val[1]
+
+        self.w = w
+        self.h = h
+        self.iw = iw
+        self.ih = ih
 
     @property
     def filter(self):
-        return f'scale=w={self.w}:h={self.h}'
+        if self.w and self.h:
+            return f'scale=w={self.w}:h={self.h}'
+        elif self.w:
+            return f'scale=w={self.w}:h=-2'
+        elif self.h:
+            return f'scale=w=-2:h={self.h}'
 
 
 class Deblock(Filters):
@@ -545,6 +546,7 @@ class UnsupportedOption(Exception):
 class Options(object):
     """A list-like object that contains options. This is the common object that hosts the options for streams
     and encoders."""
+
     def __init__(self):
         self.options = []
 
@@ -572,13 +574,19 @@ class Options(object):
             pass
             # log.debug('Option %s was rejected because of None value', str(opt))
 
+    def options_no_metadata(self):
+        Opts = Options()
+        for opt in filter(lambda x: not isinstance(x, MetadataOption), self.options):
+            Opts.add_option(opt)
+        return Opts
+
     def get_option(self, option):
         """Method to get the all option objects that matches a specific type."""
         for opt in self.options:
             if opt.__class__ == option:
                 yield opt
 
-    #def del_option(self, option):
+    # def del_option(self, option):
     #    for opt in self.options:
     #        if opt.__class__ == option:
     #            self.options.remove(opt)
@@ -644,7 +652,7 @@ class Options(object):
         return True
 
     def __eq__(self, other):
-        return Counter(self.options) == Counter(other.options)
+        return self.__hash__() == other.__hash__()
 
     def __iter__(self):
         for opt in self.options:
@@ -655,3 +663,7 @@ class Options(object):
         for opt in self.options:
             new.add_option(copy(opt))
         return new
+
+    def __hash__(self):
+        options = ''.join(list(map(str, self.options)))
+        return hash(options)

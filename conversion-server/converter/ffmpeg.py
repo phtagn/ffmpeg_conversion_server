@@ -9,7 +9,7 @@ import signal
 from subprocess import Popen, PIPE
 from typing import Union
 from converter.parsers import FFprobeParser
-
+import sys
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -103,16 +103,6 @@ class FFMpeg(object):
 
     def _getcapabilities(self):
 
-        def sortcodec(letter: str):
-            if letter == 'V':
-                return 'video'
-            elif letter == 'A':
-                return 'audio'
-            elif letter == 'S':
-                return 'subtitle'
-            else:
-                return None
-
         p = self._spawn([self.ffmpeg_path, '-v', 0, '-encoders'])
         stdout, _ = p.communicate()
         stdout = stdout.decode(console_encoding, errors='ignore')
@@ -198,6 +188,25 @@ class FFMpeg(object):
         parser = FFprobeParser(stdout_data)
 
         return parser
+
+    def explode(self, infile, encoders, timeout=10, preopts=None, postopts=None):
+        from helpers.helpers import breakdown
+        if os.name == 'nt':
+            timeout = 0
+        path_elements = breakdown(infile)
+
+        cmds = ['-i', infile]
+        for (source_number, stream_number), encoder in encoders.items():
+            cmds = []
+            outfile = os.path.join(path_elements['dir'], path_elements['file'] + f'.{encoder.produces}')
+            cmds.extend(['-map', f'0:{source_number}'])
+            cmds.extend(encoder.parse(stream_number))
+            cmds.extend(['-y', outfile])
+            print(' '.join(cmds))
+
+
+
+
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """

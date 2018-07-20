@@ -4,18 +4,19 @@ from converter.containers import ContainerFactory
 from converter.streams import AudioStream
 from converter.streamoptions import *
 import os
-from converter.encoders import EncoderFactory
+import sys
+from converter.encoders import EncoderFactory, Encoders
 import logging
 from converter.ffmpeg import FFMpeg
 
-# log = logging.getLogger()
-# log.setLevel(logging.DEBUG)
-# sh = logging.StreamHandler(sys.stdout)
-# sh.setLevel(logging.DEBUG)
-# formatter = logging.Formatter('%(levelname)s - %(message)s')
-# sh.setFormatter(formatter)
-# log.addHandler(sh)
-log = logging.getLogger(__name__)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
+# log = logging.getLogger(__name__)
 
 """Processes a video file in steps:
 1) Analyse video file
@@ -39,13 +40,14 @@ class ProcessorConfig(object):
                        'audio': self.config['Containers'][self.target]['audio'].get('prefer_copy', False),
                        'subtitle': self.config['Containers'][self.target]['subtitle'].get('prefer_copy', False)}
 
-        self.encoder_factory = EncoderFactory(self.ffmpeg)
 
         self.audio_create_tracks = self.config['Containers'][self.target]['audio']['force_create_tracks']
 
+        self.program_encoders = Encoders(self.ffmpeg)
         self._stream_formats = self.load_stream_formats()
         self._encoders = self.load_encoders()
         self._defaults = self.load_defaults()
+        self.encoder_factory = EncoderFactory(self.program_encoders, self._encoders)
 
     @property
     def defaults(self):
@@ -116,7 +118,7 @@ class ProcessorConfig(object):
 
         encs = {}
 
-        for encoder in self.encoder_factory.supported_codecs:
+        for encoder in self.program_encoders.supported_codecs:
 
             _options = Options()
             if encoder.codec_name in self.config['EncoderOptions']:
@@ -157,17 +159,20 @@ class Processor(object):
         self.options = []
 
         self.ob = OptionBuilder(self.source_container, target)
+        self.target_container = None
 
     def process(self):
+        self.target_container = self.ob.target_container
 
-            self.ob.generate_mapping(self.config.stream_formats,
-                                     self.config.defaults,
-                                     self.config.audio_languages,
-                                     self.config.subtitle_languages,
-                                     compare_presets=self.config.ignore)
+        self.ob.generate_target_container(self.config.stream_formats,
+                                          self.config.defaults,
+                                          self.config.audio_languages,
+                                          self.config.subtitle_languages,
+                                          compare_presets=self.config.ignore)
 
-            self.add_extra_audio_streams()
-            self.options = self.ob.prepare_encoders(self.config.encoder_factory, self.config.encoders)
+        self.add_extra_audio_streams()
+        self.options = self.ob.prepare_encoders(self.config.encoder_factory, self.config.encoders)
+        self.config.ffmpeg.explode(self.infile, self.options)
 
     def add_extra_audio_streams(self):
 
@@ -196,11 +201,9 @@ class Processor(object):
                     for t in extra_streams:
                         target_stream = AudioStream(t.codec)
                         target_stream.add_options(*t.options)
-                        target_stream.add_options(stream.options.get_unique_option(Language))
-                        target_stream.add_options(stream.options.get_unique_option(Disposition))
-                        t_idx = self.ob.target_container.add_stream(target_stream, duplicate_check=True)
-                        if t_idx:
-                            self.ob.add_mapping(idx, t_idx)
+                        leftovers = list(filter(lambda x: not target_stream.options.has_option(x), stream.options))
+                        target_stream.add_options(*leftovers)
+                        self.ob.add_mapping(idx, target_stream, duplicate_check=True)
 
     def convert(self):
         try:
@@ -212,16 +215,13 @@ class Processor(object):
             return None
 
 
-
-
-
 if __name__ == '__main__':
     import os
 
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
-    desktop = os.path.abspath("/Users/jon/Downloads/Geo.mkv")
+    desktop = os.path.abspath("/Users/Jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
     cfgmgr = configuration.CfgMgr()
     cfgmgr.load('defaults.ini')
     p = Processor(cfgmgr.cfg, desktop, '/Users/jon/Downloads/toto.mp4', 'mp4')
     p.process()
-    p.convert()
+#    p.convert()

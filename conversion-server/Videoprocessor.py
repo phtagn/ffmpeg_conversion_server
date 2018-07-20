@@ -11,16 +11,16 @@ import os
 
 import sys
 
-#log = logging.getLogger()
-#log.setLevel(logging.DEBUG)
-#sh = logging.StreamHandler(sys.stdout)
-#sh.setLevel(logging.DEBUG)
-#formatter = logging.Formatter('%(levelname)s - %(message)s')
-#sh.setFormatter(formatter)
-#log.addHandler(sh)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(levelname)s - %(message)s')
+sh.setFormatter(formatter)
+log.addHandler(sh)
 
 
-log = logging.getLogger(__name__)
+#log = logging.getLogger(__name__)
 
 
 class VideoProcessor(object):
@@ -292,7 +292,7 @@ if __name__ == '__main__':
     id_type2 = 'tvdb_id'
     tagging_info = {'id': 75978, 'id_type': 'tvdb_id', 'season': 16, 'episode': 19}
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
-    desktop = os.path.abspath("/Users/Jon/Downloads/Geo.mkv")
+    desktop = os.path.abspath("/Users/Jon/Downloads/geo.mkv")
     blade = os.path.abspath(
         '/Users/jon/Downloads/Blade.Runner.2049.2017.VF2.2160p.UHD.BluRay.REMUX.HEVC.HDR.TrueHD.Atmos.7.1.DTS-HDMA.AC3.5.1-TSC.mkv')
     configname = 'defaults.ini'
@@ -303,7 +303,7 @@ if __name__ == '__main__':
             'episode': 18
             }
 
-    VP = build_machine(infile=desktop, config=configname, target=target, tagging_info=tagging_info, notify=['plex'])
+    VP = build_machine(infile=desktop, config=configname, target=target, tagging_info=None, notify=None)
 
     VP.process()
     VP.tag()

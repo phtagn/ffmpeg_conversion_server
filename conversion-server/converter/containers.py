@@ -12,7 +12,7 @@ class Container(object):
     """
     supported_formats = ['mp4', 'matroska']
 
-    def __init__(self, fmt):
+    def __init__(self, fmt, file_path=None):
         """
 
         :param fmt: the format of the container, as ffmpeg describes it.
@@ -24,7 +24,7 @@ class Container(object):
             self.audio_streams = {}
             self.video_streams = {}
             self.subtitle_streams = {}
-
+            self.file_path = file_path
         else:
             raise Exception('Format %s not supported', fmt)
 
@@ -55,13 +55,33 @@ class Container(object):
             self.streams.update({sn: stream})
 
             if isinstance(stream, VideoStream):
-                self.video_streams.update({sn: stream})
+                self.video_streams.update({stream: len(self.video_streams)})
             elif isinstance(stream, AudioStream):
-                self.audio_streams.update({sn: stream})
+                self.audio_streams.update({stream: len(self.audio_streams)})
             elif isinstance(stream, SubtitleStream):
-                self.subtitle_streams.update({sn: stream})
+                self.subtitle_streams.update({stream: len(self.subtitle_streams)})
 
             return sn
+
+    def relative_stream_number(self, stream):
+        try:
+            return self.video_streams[stream]
+        except KeyError:
+            pass
+        try:
+            return self.audio_streams[stream]
+        except KeyError:
+            pass
+        try:
+            return self.subtitle_streams[stream]
+        except KeyError:
+            return None
+
+    def absolute_stream_number(self, stream):
+        for k, v in self.streams.values():
+            if v == stream:
+                return k
+        return None
 
     def is_duplicate(self, stream):
         """
@@ -72,9 +92,10 @@ class Container(object):
         :return: True or False
         :rtype: bool
         """
+
         if isinstance(stream, AudioStream):
             for k in self.audio_streams:
-                if stream.codec == self.audio_streams[k].codec and stream == self.audio_streams[k]:
+                if stream == k:
                     return True
         if isinstance(stream, VideoStream):
             for k in self.video_streams:

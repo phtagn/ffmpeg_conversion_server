@@ -1,10 +1,9 @@
 from converter.containers import Container
-from converter.streamoptions import Language, MetadataOption, Disposition
+from converter.streamoptions import Language, MetadataOption, Disposition, Filter, Scale, Width, Height
 from converter.streams import StreamFactory, VideoStream, AudioStream, SubtitleStream
 from converter.encoders import EncoderFactory
 from typing import List
 import logging
-from copy import copy
 
 log = logging.getLogger(__name__)
 
@@ -15,16 +14,24 @@ class OptionBuilder(object):
     bad_audio_codecs = ['truehd']
     bad_codecs = ['truehd']
 
-    def __init__(self, container: Container, target):
+    def __init__(self, container: Container, target, output_file=None):
         self.container = container
-        self.mapping = list()  # This is the mapping
+        self._mapping = list()  # This is the mapping
         self.target = target
 
         self.few_audio_tracks = True
-        self.target_container = Container(target)
+        self._target_container = Container(target, file_path=output_file)
 
-    def generate_mapping(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
-                         compare_presets=None):
+    @property
+    def target_container(self):
+        return self._target_container
+
+    @property
+    def mapping(self):
+        return self._mapping
+
+    def generate_target_container(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
+                                  compare_presets=None):
 
         for index, stream in self.container.streams.items():
 
@@ -59,27 +66,36 @@ class OptionBuilder(object):
                 if not b:
                     continue
 
-            if stream.codec in stream_templates:  # TODO: this is where we should look for filters
+            if stream.codec in stream_templates:
                 # If codec is in the available templates we need to check the options
-                incompatible_options = stream.options.incompatible_options(stream_templates[codec])
-
-                # if isinstance(stream, (AudioStream, SubtitleStream)) and incompatible_options.has_option(Language):
-                #    # This means that if the languages do not match, then we skip the track
-                #    continue
 
                 target_stream = StreamFactory.get_stream_by_type(stream, stream.codec)
                 if not ignore:
+                    incompatible_options = stream.options.incompatible_options(stream_templates[codec])
                     target_stream.add_options(*incompatible_options)
-
+                    leftovers = list(filter(lambda x: not incompatible_options.has_option(x), stream.options))
+                    target_stream.add_options(*leftovers)
+                else:
+                    target_stream.add_options(*stream.options)
             else:
                 # If it is not, we know we're going to transcode.
                 codec, options = stream_defaults[stream.kind]
                 target_stream = StreamFactory.get_stream_by_type(stream, codec)
                 target_stream.add_options(*options)
+                leftovers = list(
+                    filter(lambda x: x.__class__ == MetadataOption and not options.has_option(x), stream.options))
+                target_stream.add_options(*leftovers)
 
-            for opt in stream.options:
-                if isinstance(opt, MetadataOption):
-                    target_stream.add_options(opt)
+                # f = Filter()
+                # if options.has_option(Height) or options.has_option(Width):
+                #     f.add_filter(Scale(ih=stream.options.get_unique_option(Height).value if stream.options.has_option(
+                #         Height) else None,
+                #                        iw=stream.options.get_unique_option(Width).value if stream.options.has_option(
+                #                            Width) else None,
+                #                        w=options.get_unique_option(Width).value if options.has_option(Width) else None,
+                #                        h=options.get_unique_option(Height).value if options.has_option(Height) else None
+                #                        ))
+                # target_stream.add_options(f)
 
             if target_stream.codec in stream_templates:
                 for opt in stream_templates[target_stream.codec]:
@@ -92,109 +108,62 @@ class OptionBuilder(object):
                         target_stream.codec.value not in self.image_subtitle_codecs):
                     continue
 
-            target_index = self.target_container.add_stream(target_stream, duplicate_check=False)
+            self.add_mapping(source_index=index, target_stream=target_stream)
 
-            if target_index is not None:
-                self.add_mapping(index, target_index)
-
-    def add_mapping(self, source_index, target_index):
+    def add_mapping(self, source_index, target_stream, duplicate_check=False):
 
         try:
-            stream = self.container.streams[source_index]
+            source_stream = self.container.streams[source_index]
         except KeyError:
             return None
 
-        assert isinstance(self.container.streams[source_index], self.target_container.streams[target_index].__class__)
+        assert isinstance(source_stream, target_stream.__class__)
+        target_index = self._target_container.add_stream(target_stream, duplicate_check=duplicate_check)
 
-        self.mapping.append((source_index, target_index))
-
-    # def fix_disposition(self):
-    #     video_counter = 0
-    #     audio_counter = 0
-    #     subtitle_counter = 0
-    #     video_disp = {0: [], 1: []}
-    #     audio_disp = {0: [], 1: []}
-    #     subtitle_disp = {0: [], 1: []}
-    #
-    #
-    #     for idx, stream in self.target_container.streams:
-    #         disp = stream.options.get_unique_option(Disposition)
-    #         if isinstance(stream, VideoStream):
-    #             if disp and 'default' in disp:
-    #                 video_disp[disp['default']].append(idx)
-    #             else:
-    #                 video_disp[0].append(idx)
-    #         elif isinstance(stream, AudioStream):
-    #             if disp and 'default' in disp:
-    #                 audio_disp[disp['default']].append(idx)
-    #             else:
-    #                 audio_disp[0].append(idx)
-    #         elif isinstance(stream, SubtitleStream):
-    #             if disp and 'default' in disp:
-    #                 subtitle_disp[disp['default']].append(idx)
-    #             else:
-    #                 subtitle_disp[0].append(idx)
-    #
-    #     if len(audio_disp[1]) == 0 and audio_disp[0]:
-    #
+        if target_index is not None:
+            self._mapping.append((source_index, target_index))
 
     def prepare_encoders(self, factory: EncoderFactory, encoder_options, preferred_encoders: dict = None):
         video_counter = 0
         audio_counter = 0
         subtitle_counter = 0
         output = []
+        encoders = {}
         preferred_encoders = {} if preferred_encoders is None else preferred_encoders
         log.debug(str(self))
-        if not self.mapping:
-            raise Exception('Cannot prepaper encoders, no mapping has been generated')
+        if not self._mapping:
+            raise Exception('Cannot prepare encoders, no mapping has been generated')
 
-        for m in self.mapping:
+        for m in self._mapping:
             source_index, target_index = m
             source_stream = self.container.streams[source_index]
-            target_stream = self.target_container.streams[target_index]
+            target_stream = self._target_container.streams[target_index]
 
             options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
+            encoder = factory.get_encoder(source_stream, target_stream)
 
-            if source_stream.codec == target_stream.codec and (len(options_no_metadata) == 0):
-                if target_stream.kind == 'video':
-                    encoder = factory.get_codec_by_name('video_copy')
-                elif target_stream.kind == 'audio':
-                    encoder = factory.get_codec_by_name('audio_copy')
-                elif target_stream.kind == 'subtitle':
-                    encoder = factory.get_codec_by_name('subtitle_copy')
-            else:
-                if target_stream.codec.value in preferred_encoders:
-                    encoder = factory.get_codec_by_name(preferred_encoders[target_stream.codec.value])
-                else:
-                    encoder = factory.get_best_encoder(target_stream.codec.value)
-
-            if encoder.codec_name in encoder_options:
-                encoder.add_option(*encoder_options[encoder.codec_name])
-
-            encoder.add_option(*target_stream.options)
+            encoders[(source_index, video_counter)] = encoder
 
             output.extend(['-map', f'0:{source_index}'])
             if isinstance(target_stream, VideoStream):
-                output.extend(encoder.parse(video_counter))
+                encoders[(source_index, video_counter)] = encoder
                 video_counter += 1
             elif isinstance(target_stream, AudioStream):
-                output.extend(encoder.parse(audio_counter))
+                encoders[(source_index, audio_counter)] = encoder
                 audio_counter += 1
             elif isinstance(target_stream, SubtitleStream):
-                output.extend(encoder.parse(subtitle_counter))
+                encoders[(source_index, subtitle_counter)] = encoder
                 subtitle_counter += 1
 
-        output.extend(['-f', self.target_container.format])
-        log.debug(' '.join(output))
-        return output
+        return encoders
 
     def __str__(self):
         from io import StringIO
         s = StringIO()
-        for m in self.mapping:
+        for m in self._mapping:
             source_index, target_index = m
             source_stream = self.container.streams[source_index]
-            target_stream = self.target_container.streams[target_index]
+            target_stream = self._target_container.streams[target_index]
             p = f'{source_index} : {source_stream.codec} -> {target_index}: {target_stream.codec}\n'
             s.write(p)
             for opt in source_stream.options.options:

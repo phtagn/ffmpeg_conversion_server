@@ -2,6 +2,7 @@
 from converter.streamoptions import *
 from typing import Union, List
 from abc import ABC
+
 """
 converter.encoders.py
 Contains all encoders supported by the program. Encoders are designed to be the last step in the preparation process. 
@@ -17,7 +18,7 @@ class _FFMpegCodec(ABC):
     """
     codec_name = None
     ffmpeg_codec_name = None
-    supported_options = []
+    supported_options = [Filter]
     codec_type = ''
     produces = ''
     score = 5
@@ -35,7 +36,6 @@ class _FFMpegCodec(ABC):
         """
         for option in options:
             assert isinstance(option, (IStreamOption, IStreamValueOption, EncoderOption, MetadataOption))
-            print(self.__class__.__name__)
             if type(option) in self.__class__.supported_options:
                 self.options.add_option(option)
             else:
@@ -271,7 +271,7 @@ class H265(_VideoCodec):
     produces = 'hevc'
     supported_options = _VideoCodec.supported_options.copy()
 
-    #def __init__(self):
+    # def __init__(self):
     #    super(H265, self).__init__()
     #    self.options.add_option(Tag('hvc1'))
 
@@ -436,31 +436,19 @@ class Pgs(_SubtitleCodec):
     supported_options = _SubtitleCodec.supported_options.copy()
 
 
-class EncoderFactory(object):
+class Encoders(object):
     _supported_codecs = [VideoCopy, AudioCopy, SubtitleCopy,
-                        Vorbis, Aac, FdkAac, Faac, Ac3, EAc3, Flac, Dts, Mp2, Mp3,
-                        Theora, H264, NVEncH264, H264QSV, H264VAAPI, H265, NVEncH265, HEVCQSV, Divx, Vp8, H263, Flv,
-                        Mpeg1, Mpeg2,
-                        MOVText, WebVTT, SSA, SubRip, DVBSub, DVDSub, Pgs]
+                         Vorbis, Aac, FdkAac, Faac, Ac3, EAc3, Flac, Dts, Mp2, Mp3,
+                         Theora, H264, NVEncH264, H264QSV, H264VAAPI, H265, NVEncH265, HEVCQSV, Divx, Vp8, H263, Flv,
+                         Mpeg1, Mpeg2,
+                         MOVText, WebVTT, SSA, SubRip, DVBSub, DVDSub, Pgs]
 
     def __init__(self, ffmpeg):
         self._available_encoders = ffmpeg.encoders
         self._available_decoders = ffmpeg.decoders
-        self.supported_codecs = [cdc for cdc in self.__class__._supported_codecs if cdc.ffmpeg_codec_name in ffmpeg.encoders]
+        self.supported_codecs = [cdc for cdc in self.__class__._supported_codecs if
+                                 cdc.ffmpeg_codec_name in ffmpeg.encoders]
         self.supported_codecs.extend([VideoCopy, AudioCopy, SubRip])
-
-    def get_best_encoder(self, stream_format):
-        matching_encoder = [cdc for cdc in self.supported_codecs if cdc.produces == stream_format]
-        return sorted(matching_encoder, key=lambda enc: enc.score, reverse=True)[0]()
-
-    def get_codec_by_name(self, name: str):
-        try:
-            codec_class = next(cdc for cdc in self.supported_codecs if cdc.codec_name == name.lower())
-        except StopIteration:
-            log.error('Could not find codec %s', name)
-            return None
-        else:
-            return codec_class()
 
     def is_ffmpeg_encoder(self, enc):
         return enc in self._available_encoders
@@ -469,19 +457,51 @@ class EncoderFactory(object):
     def is_supported(cls, name):
         if name == 'copy':
             return True
-        return (name in [enc.codec_name for enc in cls.supported_codecs] or
-                name in [enc.ffmpeg_codec_name for enc in cls.supported_codecs])
+        return (name in [enc.codec_name for enc in cls._supported_codecs] or
+                name in [enc.ffmpeg_codec_name for enc in cls._supported_codecs])
 
 
+class EncoderFactory(object):
 
+    def __init__(self, encoders: Encoders, defaults=None):
+        self.defaults = {} if defaults is None else defaults
+        self.encoders = encoders
 
+    def get_encoder(self, source_stream, target_stream):
+        """
 
+        :param source_stream:
+        :type source_stream: converter.streams.Stream
+        :param target_stream:
+        :type target_stream: converter.streams.Stream
+        :return:
+        :rtype:
+        """
+        assert source_stream.__class__ == target_stream.__class__
+        if source_stream == target_stream:
+            if source_stream.kind == 'video':
+                return VideoCopy()
+            elif source_stream.kind == 'audio':
+                return AudioCopy()
+            elif source_stream.kind == 'subtitle':
+                return SubtitleCopy()
+        else:
+            encoder = self._get_best_encoder(target_stream.codec.value)
+            if encoder.codec_name in self.defaults:
+                for opt in self.defaults[encoder.codec_name]:
+                    encoder.add_option(opt)
 
+            return encoder
 
-if __name__ == '__main__':
-    from converter.ffmpeg import FFMpeg
+    def _get_best_encoder(self, stream_format):
+        matching_encoder = [cdc for cdc in self.encoders.supported_codecs if cdc.produces == stream_format]
+        return sorted(matching_encoder, key=lambda enc: enc.score, reverse=True)[0]()
 
-    ff = FFMpeg('/usr/local/bin/ffmpeg', '/usr/local/bin/ffprobe')
-    e = Encoders(ff)
-    en = e.get_encoder_from_stream_format('mp3')
-    print('yeha')
+    def get_codec_by_name(self, name: str):
+        try:
+            codec_class = next(cdc for cdc in self.encoders.supported_codecs if cdc.codec_name == name.lower())
+        except StopIteration:
+            log.error('Could not find codec %s', name)
+            return None
+        else:
+            return codec_class()
