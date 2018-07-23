@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE
 from typing import Union
 from converter.parsers import FFprobeParser
 import sys
+from converter.streamoptions import Language
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -121,7 +122,6 @@ class FFMpeg(object):
                 if codectype[0] in ['V', 'A', 'S']:
                     self.encoders.append(codecname)
 
-
         p = self._spawn([self.ffmpeg_path, '-v', 0, '-decoders'])
         stdout, _ = p.communicate()
         stdout = stdout.decode(console_encoding, errors='ignore')
@@ -189,24 +189,95 @@ class FFMpeg(object):
 
         return parser
 
-    def explode(self, infile, encoders, timeout=10, preopts=None, postopts=None):
+    def generate_commands(self, source_container, target_container, mapping, encoder_factory, timeout=10, preopts=None,
+                          postopts=None):
+        """
+
+        :param source_container:
+        :type source_container: converter.containers.Container
+        :param target_container:
+        :type target_container: converter.containers.Container
+        :param mapping:
+        :type mapping: list
+        :param encoder_factory:
+        :type encoder_factory: converter.encoders.EncoderFactory
+        :param timeout:
+        :param preopts:
+        :param postopts:
+        :return: list
+        """
         from helpers.helpers import breakdown
         if os.name == 'nt':
             timeout = 0
-        path_elements = breakdown(infile)
 
-        cmds = ['-i', infile]
-        for (source_number, stream_number), encoder in encoders.items():
-            cmds = []
-            outfile = os.path.join(path_elements['dir'], path_elements['file'] + f'.{encoder.produces}')
-            cmds.extend(['-map', f'0:{source_number}'])
-            cmds.extend(encoder.parse(stream_number))
-            cmds.extend(['-y', outfile])
-            print(' '.join(cmds))
+        explode = True
+        path_elements = breakdown(target_container.file_path)
 
+        if explode:
+            outer_cmds = []
+            for source_index, target_index in mapping:
+                inner_cmds = [self.ffmpeg_path]
+                inner_cmds.extend(['-i', source_container.file_path])
+                source_stream = source_container.streams[source_index]
+                target_stream = target_container.streams[target_index]  # type: converter.streams.Stream
+                outpath = os.path.join(path_elements['dir'],
+                                       f'{path_elements["file"]}-{source_index}-{target_index}.{target_stream.codec.value}')
 
+                encoder = encoder_factory.get_encoder(source_stream, target_stream)
 
+                if 'copy' in encoder.codec_name:
+                    encoder.add_option(*target_stream.options.metadata_options())
+                    if target_stream.options.has_option(Language):
+                        encoder.add_option(target_stream.options.get_unique_option(Language))
+                else:
+                    encoder.add_option(*target_stream.options)
 
+                inner_cmds.extend(encoder.parse(target_container.relative_stream_number(target_stream)))
+                inner_cmds.extend(['-y', outpath])
+                outer_cmds.append(inner_cmds)
+
+        for k in outer_cmds:
+            print(' '.join(k))
+            p = Popen(k, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
+                      close_fds=(os.name != 'nt'), startupinfo=None)
+            buf = ''
+            total_output = ''
+            pat = re.compile(r'time=([0-9.:]+) ')
+            while True:
+                if timeout:
+                    signal.alarm(timeout)
+
+                ret = p.stderr.read(10)
+
+                if timeout:
+                    signal.alarm(0)
+
+                if not ret:
+                    break
+
+                try:
+                    ret = ret.decode(console_encoding)
+                except UnicodeDecodeError:
+                    try:
+                        ret = ret.decode(console_encoding, errors="ignore")
+                    except:
+                        pass
+
+                total_output += ret
+                buf += ret
+                if '\r' in buf:
+                    line, buf = buf.split('\r', 1)
+
+                    tmp = pat.findall(line)
+                    if len(tmp) == 1:
+                        timespec = tmp[0]
+                        if ':' in timespec:
+                            timecode = 0
+                            for part in timespec.split(':'):
+                                timecode = 60 * timecode + float(part)
+                        else:
+                            timecode = float(tmp[0])
+                        print(timecode)
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """

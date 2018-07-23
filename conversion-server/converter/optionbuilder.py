@@ -14,17 +14,10 @@ class OptionBuilder(object):
     bad_audio_codecs = ['truehd']
     bad_codecs = ['truehd']
 
-    def __init__(self, container: Container, target, output_file=None):
-        self.container = container
+    def __init__(self, source_container: Container, target_container: Container):
+        self.source_container = source_container
+        self.target_container = target_container
         self._mapping = list()  # This is the mapping
-        self.target = target
-
-        self.few_audio_tracks = True
-        self._target_container = Container(target, file_path=output_file)
-
-    @property
-    def target_container(self):
-        return self._target_container
 
     @property
     def mapping(self):
@@ -33,7 +26,7 @@ class OptionBuilder(object):
     def generate_target_container(self, stream_templates, stream_defaults, audio_languages, subtitle_languages,
                                   compare_presets=None):
 
-        for index, stream in self.container.streams.items():
+        for index, stream in self.source_container.streams.items():
 
             if stream.codec.value in self.bad_codecs:
                 continue
@@ -83,7 +76,7 @@ class OptionBuilder(object):
                 target_stream = StreamFactory.get_stream_by_type(stream, codec)
                 target_stream.add_options(*options)
                 leftovers = list(
-                    filter(lambda x: x.__class__ == MetadataOption and not options.has_option(x), stream.options))
+                    filter(lambda x: not options.has_option(x), stream.options))
                 target_stream.add_options(*leftovers)
 
                 # f = Filter()
@@ -113,57 +106,24 @@ class OptionBuilder(object):
     def add_mapping(self, source_index, target_stream, duplicate_check=False):
 
         try:
-            source_stream = self.container.streams[source_index]
+            source_stream = self.source_container.streams[source_index]
         except KeyError:
             return None
 
         assert isinstance(source_stream, target_stream.__class__)
-        target_index = self._target_container.add_stream(target_stream, duplicate_check=duplicate_check)
+        target_index = self.target_container.add_stream(target_stream, duplicate_check=duplicate_check)
 
         if target_index is not None:
             self._mapping.append((source_index, target_index))
 
-    def prepare_encoders(self, factory: EncoderFactory, encoder_options, preferred_encoders: dict = None):
-        video_counter = 0
-        audio_counter = 0
-        subtitle_counter = 0
-        output = []
-        encoders = {}
-        preferred_encoders = {} if preferred_encoders is None else preferred_encoders
-        log.debug(str(self))
-        if not self._mapping:
-            raise Exception('Cannot prepare encoders, no mapping has been generated')
-
-        for m in self._mapping:
-            source_index, target_index = m
-            source_stream = self.container.streams[source_index]
-            target_stream = self._target_container.streams[target_index]
-
-            options_no_metadata = [o for o in target_stream.options if not isinstance(o, MetadataOption)]
-            encoder = factory.get_encoder(source_stream, target_stream)
-
-            encoders[(source_index, video_counter)] = encoder
-
-            output.extend(['-map', f'0:{source_index}'])
-            if isinstance(target_stream, VideoStream):
-                encoders[(source_index, video_counter)] = encoder
-                video_counter += 1
-            elif isinstance(target_stream, AudioStream):
-                encoders[(source_index, audio_counter)] = encoder
-                audio_counter += 1
-            elif isinstance(target_stream, SubtitleStream):
-                encoders[(source_index, subtitle_counter)] = encoder
-                subtitle_counter += 1
-
-        return encoders
 
     def __str__(self):
         from io import StringIO
         s = StringIO()
         for m in self._mapping:
             source_index, target_index = m
-            source_stream = self.container.streams[source_index]
-            target_stream = self._target_container.streams[target_index]
+            source_stream = self.source_container.streams[source_index]
+            target_stream = self.target_container.streams[target_index]
             p = f'{source_index} : {source_stream.codec} -> {target_index}: {target_stream.codec}\n'
             s.write(p)
             for opt in source_stream.options.options:

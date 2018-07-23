@@ -580,6 +580,13 @@ class Options(object):
             Opts.add_option(opt)
         return Opts
 
+    def metadata_options(self):
+        Opts = Options()
+        for opt in filter(lambda x: isinstance(x, MetadataOption), self.options):
+            Opts.add_option(opt)
+
+        return Opts
+
     def get_option(self, option):
         """Method to get the all option objects that matches a specific type."""
         for opt in self.options:

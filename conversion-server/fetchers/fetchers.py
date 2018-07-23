@@ -340,7 +340,7 @@ class ArtworkException(FetcherException):
 
 
 class Poster:
-    # Simple container for all the poster parameters needed
+    # Simple source_container for all the poster parameters needed
     def __init__(self, rating=0, ratingcount=0, bannerpath=""):
         self.rating = rating
         self.bannerpath = bannerpath

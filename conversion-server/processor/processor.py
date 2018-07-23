@@ -1,6 +1,6 @@
 import configuration
 from converter.optionbuilder import OptionBuilder
-from converter.containers import ContainerFactory
+from converter.containers import ContainerFactory, Container
 from converter.streams import AudioStream
 from converter.streamoptions import *
 import os
@@ -40,22 +40,17 @@ class ProcessorConfig(object):
                        'audio': self.config['Containers'][self.target]['audio'].get('prefer_copy', False),
                        'subtitle': self.config['Containers'][self.target]['subtitle'].get('prefer_copy', False)}
 
-
         self.audio_create_tracks = self.config['Containers'][self.target]['audio']['force_create_tracks']
 
+        self._defaults = self.load_defaults()
         self.program_encoders = Encoders(self.ffmpeg)
         self._stream_formats = self.load_stream_formats()
-        self._encoders = self.load_encoders()
-        self._defaults = self.load_defaults()
-        self.encoder_factory = EncoderFactory(self.program_encoders, self._encoders)
+        self.encoders_defaults = self.load_encoders()
+        self.encoder_factory = EncoderFactory(self.program_encoders, self.encoders_defaults)
 
     @property
     def defaults(self):
         return self._defaults
-
-    @property
-    def encoders(self):
-        return self._encoders
 
     @property
     def stream_formats(self):
@@ -134,14 +129,14 @@ class ProcessorConfig(object):
 
 class Processor(object):
 
-    def __init__(self, config, inputfile, outputfile, target):
+    def __init__(self, config, inputfile, outputfile, target, explode=False):
         """
-        Creates a target container from the inputfile, taking into account the configuration
+        Creates a target source_container from the inputfile, taking into account the configuration
         :param config: a configuration object
         :type config: ConfigObj
         :param inputfile: path to the input file
         :type inputfile: os.path.abspath
-        :param target: the target container to create
+        :param target: the target source_container to create
         :type target: str
         """
         self.config = ProcessorConfig(config, target)
@@ -149,20 +144,18 @@ class Processor(object):
             self.infile = inputfile
         else:
             raise FileNotFoundError
-
+        self.explode = explode
         self.source_container = ContainerFactory.container_from_ffprobe(self.infile,
                                                                         self.config.ffmpeg
                                                                         )
-        self.encoders = self.config.encoders
-        self.target = target
+        self.target_container = Container(target, outputfile)
+
         self.output = outputfile
         self.options = []
 
-        self.ob = OptionBuilder(self.source_container, target)
-        self.target_container = None
+        self.ob = OptionBuilder(self.source_container, self.target_container)
 
     def process(self):
-        self.target_container = self.ob.target_container
 
         self.ob.generate_target_container(self.config.stream_formats,
                                           self.config.defaults,
@@ -171,8 +164,10 @@ class Processor(object):
                                           compare_presets=self.config.ignore)
 
         self.add_extra_audio_streams()
-        self.options = self.ob.prepare_encoders(self.config.encoder_factory, self.config.encoders)
-        self.config.ffmpeg.explode(self.infile, self.options)
+        self.config.ffmpeg.generate_commands(self.source_container, self.target_container, self.ob.mapping, self.config.encoder_factory)
+
+
+
 
     def add_extra_audio_streams(self):
 

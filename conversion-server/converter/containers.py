@@ -7,7 +7,7 @@ log = logging.getLogger(__name__)
 
 class Container(object):
     """
-    Container class representing a media file (e.g. avi, mp4, mkv...). A container has streams which themselves
+    Container class representing a media file (e.g. avi, mp4, mkv...). A source_container has streams which themselves
     have options. At the moment containers support 3 types of streams, namely video, audio and subtitle.
     """
     supported_formats = ['mp4', 'matroska']
@@ -15,7 +15,7 @@ class Container(object):
     def __init__(self, fmt, file_path=None):
         """
 
-        :param fmt: the format of the container, as ffmpeg describes it.
+        :param fmt: the format of the source_container, as ffmpeg describes it.
         :type fmt: str
         """
         if fmt in self.supported_formats:
@@ -31,13 +31,13 @@ class Container(object):
     def add_stream(self, stream: Union[AudioStream, VideoStream, SubtitleStream],
                    stream_number: Optional[int] = None, duplicate_check=False) -> int:
         """
-        Adds a stream to the container. The stream has to be of a supported type.
+        Adds a stream to the source_container. The stream has to be of a supported type.
         :param stream: The stream to add.
         :type stream: AudioStream, VideoStream or SubtitleStream
         :param stream_number: 0-based number of the stream, in *absolute* terms (i.e. not relative to its type).
         If not supplied, the method will compute the next available stream number.
         :type stream_number: int
-        :param duplicate_check: Indicates whether the container should check that streams are not duplicated.
+        :param duplicate_check: Indicates whether the source_container should check that streams are not duplicated.
         See is_duplicate.
         :type duplicate_check: bool
         :return: Number of the stream that was added, None if the stream was rejected
@@ -85,9 +85,9 @@ class Container(object):
 
     def is_duplicate(self, stream):
         """
-        Checks whether a stream is a duplicate of an existing stream already present in the container. See __eq__ method
+        Checks whether a stream is a duplicate of an existing stream already present in the source_container. See __eq__ method
         of Streams class to see how duplicate checking occurs.
-        :param stream: Stream to be checked against the container
+        :param stream: Stream to be checked against the source_container
         :type stream: AudioStream, VideoStream or SubtitleStream
         :return: True or False
         :rtype: bool
@@ -110,26 +110,26 @@ class Container(object):
 
 
 class ContainerFactory(object):
-    """Factory class to build a container"""
+    """Factory class to build a source_container"""
     @staticmethod
     def container_from_ffprobe(filepath, ffmpeg) -> Container:
         """
-        Builds a container from the output of ffprobe. A parser object from the parsers.py
+        Builds a source_container from the output of ffprobe. A parser object from the parsers.py
         :param filepath: path of the file to analyse
         :type filepath: os.path
         :param ffmpeg: an initialised ffmpeg object
         :type ffmpeg: converter.ffmpeg.FFmpeg
-        :return: a container filled with streams
+        :return: a source_container filled with streams
         :rtype: Container
         """
         parser = ffmpeg.probe(filepath)
 
         if 'matroska' in parser.format:
-            ctn = Container('matroska')
+            ctn = Container('matroska', filepath)
         elif 'mp4' in parser.format:
-            ctn = Container('mp4')
+            ctn = Container('mp4', filepath)
         else:
-            ctn = Container(parser.format)
+            ctn = Container(parser.format, filepath)
 
         for idx in range(len(parser.streams)):
 

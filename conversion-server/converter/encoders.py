@@ -83,24 +83,25 @@ class _Copy(_FFMpegCodec):
     """
     codec_name = 'copy'
     ffmpeg_codec_name = 'copy'
+    supported_options = [Bsf, Language, Disposition]
 
 
 class VideoCopy(_Copy):
     codec_type = 'video'
     codec_name = 'video_copy'
-    supported_options = _VideoCodec.supported_options.copy()
+    supported_options = _Copy.supported_options.copy()
 
 
 class AudioCopy(_Copy):
     codec_type = 'audio'
     codec_name = 'audio_copy'
-    supported_options = _AudioCodec.supported_options.copy()
+    supported_options = _Copy.supported_options.copy()
 
 
 class SubtitleCopy(_Copy):
     codec_type = 'subtitle'
     codec_name = 'subtitle_copy'
-    supported_options = _SubtitleCodec.supported_options.copy()
+    supported_options = _Copy.supported_options.copy()
 
 
 class H264(_VideoCodec):

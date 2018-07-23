@@ -29,14 +29,14 @@ class VideoProcessor(object):
                  notify: list = None):
         """
         Videoprocessor contains the methods to process a video from start to finish. The steps are :
-        1) Analyse the input file to determine the source container, and create the theoretical target container
+        1) Analyse the input file to determine the source source_container, and create the theoretical target source_container
         2) Convert the input file into the output file
         3) Tag the output file
         4) Postprocess, e.g. for mp4 do qtfaststart
         5) Deploy the output file to its destination
         6) Notify various apps of the
         :param infile: path to the input file
-        :param target: extension of container, e.g. mp4, mkv
+        :param target: extension of source_container, e.g. mp4, mkv
         :param config: name of the configuration file, relative to the config directory
         :param overrides: a dictionary containing overrides to the configuration file
         :param tagging_info: a dictionary in the same form as the config file. Does not need to contain all
@@ -57,7 +57,7 @@ class VideoProcessor(object):
         if target in self.config['Containers'].keys():
             self.target = target
         else:
-            raise Exception(f'Unsupported container, valid containers are {self.config.keys()}')
+            raise Exception(f'Unsupported source_container, valid containers are {self.config.keys()}')
 
         self.copy_folder = None
         self.move_folder = None
@@ -127,7 +127,7 @@ class VideoProcessor(object):
 
     def do_process(self):
         """
-        Processes the sourcefile into a target container
+        Processes the sourcefile into a target source_container
         :return: None
         """
         self.processor.process()
@@ -158,7 +158,7 @@ class VideoProcessor(object):
         if t:
             t.writetags()
         else:
-            log.info('Tagging is not supported for container %s at this time, skipping',
+            log.info('Tagging is not supported for source_container %s at this time, skipping',
                      self.target)
 
     def do_postprocess(self):
