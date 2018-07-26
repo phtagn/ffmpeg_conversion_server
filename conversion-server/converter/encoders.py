@@ -464,9 +464,10 @@ class Encoders(object):
 
 class EncoderFactory(object):
 
-    def __init__(self, encoders: Encoders, defaults=None):
+    def __init__(self, encoders: Encoders, defaults=None, preferred=None):
         self.defaults = {} if defaults is None else defaults
         self.encoders = encoders
+        self.preferred = {} if preferred is None else preferred
 
     def get_encoder(self, source_stream, target_stream):
         """
@@ -487,12 +488,15 @@ class EncoderFactory(object):
             elif source_stream.kind == 'subtitle':
                 return SubtitleCopy()
         else:
-            encoder = self._get_best_encoder(target_stream.codec.value)
+            try:
+                encoder = self.get_codec_by_name(self.preferred[target_stream.codec.value])
+            except (KeyError, StopIteration):
+                encoder = self._get_best_encoder(target_stream.codec.value)
             if encoder.codec_name in self.defaults:
                 for opt in self.defaults[encoder.codec_name]:
                     encoder.add_option(opt)
 
-            return encoder
+                return encoder
 
     def _get_best_encoder(self, stream_format):
         matching_encoder = [cdc for cdc in self.encoders.supported_codecs if cdc.produces == stream_format]
@@ -503,6 +507,6 @@ class EncoderFactory(object):
             codec_class = next(cdc for cdc in self.encoders.supported_codecs if cdc.codec_name == name.lower())
         except StopIteration:
             log.error('Could not find codec %s', name)
-            return None
+            raise StopIteration
         else:
             return codec_class()

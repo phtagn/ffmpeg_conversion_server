@@ -1,5 +1,5 @@
 from typing import Union, Optional
-from converter.streams import AudioStream, VideoStream, SubtitleStream
+from converter.streams import AudioStream, VideoStream, SubtitleStream, StreamFactory
 import logging
 
 log = logging.getLogger(__name__)
@@ -159,3 +159,4 @@ class ContainerFactory(object):
                 ctn.add_stream(s, idx)
 
         return ctn
+

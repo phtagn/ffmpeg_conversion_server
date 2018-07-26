@@ -210,74 +210,76 @@ class FFMpeg(object):
         if os.name == 'nt':
             timeout = 0
 
-        explode = True
         path_elements = breakdown(target_container.file_path)
 
-        if explode:
-            outer_cmds = []
-            for source_index, target_index in mapping:
-                inner_cmds = [self.ffmpeg_path]
-                inner_cmds.extend(['-i', source_container.file_path])
-                source_stream = source_container.streams[source_index]
-                target_stream = target_container.streams[target_index]  # type: converter.streams.Stream
-                outpath = os.path.join(path_elements['dir'],
-                                       f'{path_elements["file"]}-{source_index}-{target_index}.{target_stream.codec.value}')
+        cmds = [self.ffmpeg_path,
+                '-i',
+                source_container.file_path]
+        if preopts:
+            cmds.extend(preopts)
 
-                encoder = encoder_factory.get_encoder(source_stream, target_stream)
+        for source_index, target_index in mapping:
+            source_stream = source_container.streams[source_index]
+            target_stream = target_container.streams[target_index]  # type: converter.streams.Stream
 
-                if 'copy' in encoder.codec_name:
-                    encoder.add_option(*target_stream.options.metadata_options())
-                    if target_stream.options.has_option(Language):
-                        encoder.add_option(target_stream.options.get_unique_option(Language))
-                else:
-                    encoder.add_option(*target_stream.options)
+            encoder = encoder_factory.get_encoder(source_stream, target_stream)
 
-                inner_cmds.extend(encoder.parse(target_container.relative_stream_number(target_stream)))
-                inner_cmds.extend(['-y', outpath])
-                outer_cmds.append(inner_cmds)
+            if 'copy' in encoder.codec_name:
+                encoder.add_option(*target_stream.options.metadata_options())
+                if target_stream.options.has_option(Language):
+                    encoder.add_option(target_stream.options.get_unique_option(Language))
+            else:
+                encoder.add_option(*target_stream.options)
 
-        for k in outer_cmds:
-            print(' '.join(k))
-            p = Popen(k, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
-                      close_fds=(os.name != 'nt'), startupinfo=None)
-            buf = ''
-            total_output = ''
-            pat = re.compile(r'time=([0-9.:]+) ')
-            while True:
-                if timeout:
-                    signal.alarm(timeout)
+            cmds.extend(encoder.parse(target_container.relative_stream_number(target_stream)))
 
-                ret = p.stderr.read(10)
+        if postopts:
+            cmds.extend(postopts)
 
-                if timeout:
-                    signal.alarm(0)
+        cmds.extend(['-y', target_container.file_path])
 
-                if not ret:
-                    break
+        log.debug(' '.join(cmds))
+        sys.exit(0)
+        p = Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
+                  close_fds=(os.name != 'nt'), startupinfo=None)
+        buf = ''
+        total_output = ''
+        pat = re.compile(r'time=([0-9.:]+) ')
+        while True:
+            if timeout:
+                signal.alarm(timeout)
 
+            ret = p.stderr.read(10)
+
+            if timeout:
+                signal.alarm(0)
+
+            if not ret:
+                break
+
+            try:
+                ret = ret.decode(console_encoding)
+            except UnicodeDecodeError:
                 try:
-                    ret = ret.decode(console_encoding)
-                except UnicodeDecodeError:
-                    try:
-                        ret = ret.decode(console_encoding, errors="ignore")
-                    except:
-                        pass
+                    ret = ret.decode(console_encoding, errors="ignore")
+                except:
+                    pass
 
-                total_output += ret
-                buf += ret
-                if '\r' in buf:
-                    line, buf = buf.split('\r', 1)
+            total_output += ret
+            buf += ret
+            if '\r' in buf:
+                line, buf = buf.split('\r', 1)
 
-                    tmp = pat.findall(line)
-                    if len(tmp) == 1:
-                        timespec = tmp[0]
-                        if ':' in timespec:
-                            timecode = 0
-                            for part in timespec.split(':'):
-                                timecode = 60 * timecode + float(part)
-                        else:
-                            timecode = float(tmp[0])
-                        print(timecode)
+                tmp = pat.findall(line)
+                if len(tmp) == 1:
+                    timespec = tmp[0]
+                    if ':' in timespec:
+                        timecode = 0
+                        for part in timespec.split(':'):
+                            timecode = 60 * timecode + float(part)
+                    else:
+                        timecode = float(tmp[0])
+                    print(timecode)
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """

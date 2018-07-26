@@ -46,7 +46,10 @@ class ProcessorConfig(object):
         self.program_encoders = Encoders(self.ffmpeg)
         self._stream_formats = self.load_stream_formats()
         self.encoders_defaults = self.load_encoders()
-        self.encoder_factory = EncoderFactory(self.program_encoders, self.encoders_defaults)
+        self.preferred_encoders = self.config['PreferredEncoders']
+        self.encoder_factory = EncoderFactory(self.program_encoders, self.encoders_defaults, self.preferred_encoders)
+        self.preopts = self.config['Containers'][self.target]['preopts']
+        self.postopts = self.config['Containers'][self.target]['postopts']
 
     @property
     def defaults(self):
@@ -164,10 +167,9 @@ class Processor(object):
                                           compare_presets=self.config.ignore)
 
         self.add_extra_audio_streams()
-        self.config.ffmpeg.generate_commands(self.source_container, self.target_container, self.ob.mapping, self.config.encoder_factory)
-
-
-
+        self.ob.print_mapping(self.source_container, self.target_container, self.ob.mapping)
+        self.config.ffmpeg.generate_commands(self.source_container, self.target_container, self.ob.mapping,
+                                             self.config.encoder_factory)
 
     def add_extra_audio_streams(self):
 

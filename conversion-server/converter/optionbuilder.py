@@ -116,6 +116,26 @@ class OptionBuilder(object):
         if target_index is not None:
             self._mapping.append((source_index, target_index))
 
+    @staticmethod
+    def print_mapping(source_container, target_container, mapping):
+        from io import StringIO
+        s = StringIO()
+        for m in mapping:
+            source_index, target_index = m
+            source_stream = source_container.streams[source_index]
+            target_stream = target_container.streams[target_index]
+            p = f'{source_index} : {source_stream.codec} -> {target_index}: {target_stream.codec}\n'
+            s.write(p)
+            for opt in source_stream.options.options:
+                topt = target_stream.options.get_unique_option(opt.__class__)
+                if topt:
+                    p = f'    {opt} -> {topt}\n'
+                else:
+                    p = f'    {opt} -> same\n'
+                s.write(p)
+            s.write('-' * 10 + '\n')
+
+        print(s.getvalue())
 
     def __str__(self):
         from io import StringIO

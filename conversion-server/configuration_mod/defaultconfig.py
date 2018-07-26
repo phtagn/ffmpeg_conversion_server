@@ -1,7 +1,7 @@
 # coding=utf-8
 from collections import OrderedDict
 from configobj import ConfigObj
-from converter.encoders import Encoders, _VideoCodec, _AudioCodec, _SubtitleCodec
+from converter.encoders import Encoders, _VideoCodec, _AudioCodec, _SubtitleCodec, _Copy
 from converter.streamformats import *
 from converter.streamoptions import EncoderOption
 
@@ -38,7 +38,7 @@ for codec in Encoders._supported_codecs:
         elif issubclass(codec, _SubtitleCodec):
             subtitlecodecs.update({codec.codec_name: optdict})
 
-    if codec.produces in p and codec.codec_name != 'copy':
+    if codec.produces in p and 'copy' not in codec.codec_name:
         p[codec.produces].append(codec.ffmpeg_codec_name)
     elif codec.codec_name != 'copy':
         p.update({codec.produces: [codec.ffmpeg_codec_name]})
