@@ -221,7 +221,7 @@ class FFMpeg(object):
         for source_index, target_index in mapping:
             source_stream = source_container.streams[source_index]
             target_stream = target_container.streams[target_index]  # type: converter.streams.Stream
-
+            cmds.extend(['-map', f'0:{source_index}'])
             encoder = encoder_factory.get_encoder(source_stream, target_stream)
 
             if 'copy' in encoder.codec_name:
@@ -239,7 +239,7 @@ class FFMpeg(object):
         cmds.extend(['-y', target_container.file_path])
 
         log.debug(' '.join(cmds))
-        sys.exit(0)
+
         p = Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                   close_fds=(os.name != 'nt'), startupinfo=None)
         buf = ''
@@ -324,6 +324,7 @@ class FFMpeg(object):
         if postopts:
             cmds.extend(postopts)
         cmds.extend(['-y', outfile])
+
 
         if timeout:
             def on_sigalrm(*_):

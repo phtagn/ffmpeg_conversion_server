@@ -10,7 +10,7 @@ class Container(object):
     Container class representing a media file (e.g. avi, mp4, mkv...). A source_container has streams which themselves
     have options. At the moment containers support 3 types of streams, namely video, audio and subtitle.
     """
-    supported_formats = ['mp4', 'matroska']
+    supported_formats = ['mp4', 'matroska', 'avi']
 
     def __init__(self, fmt, file_path=None):
         """

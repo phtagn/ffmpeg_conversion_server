@@ -83,7 +83,7 @@ class _Copy(_FFMpegCodec):
     """
     codec_name = 'copy'
     ffmpeg_codec_name = 'copy'
-    supported_options = [Bsf, Language, Disposition]
+    supported_options = [Bsf, Language, Disposition, Tag]
 
 
 class VideoCopy(_Copy):
@@ -271,6 +271,7 @@ class H265(_VideoCodec):
     ffmpeg_codec_name = 'libx265'
     produces = 'hevc'
     supported_options = _VideoCodec.supported_options.copy()
+    supported_options.extend([PixFmt, Level, Profile, Bitrate, Disposition, Crf])
 
     # def __init__(self):
     #    super(H265, self).__init__()

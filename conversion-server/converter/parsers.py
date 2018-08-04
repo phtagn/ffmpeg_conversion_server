@@ -31,7 +31,10 @@ class FFprobeParser(object):
         if self.streams[index].get('bit_rate', 0):
             br = int(self.streams[index]['bit_rate'])
         else:
-            br = int(self.streams[index]['tags'].get('BPS', 0))
+            try:
+                br = int(self.streams[index]['tags'].get('BPS', 0))
+            except KeyError:
+                return Bitrate(0)
 
         return Bitrate(int(br/1000))
 
@@ -48,7 +51,10 @@ class FFprobeParser(object):
         return Width(self.streams[index].get('width', 0))
 
     def language(self, index):
-        return Language(self.streams[index]['tags'].get('language', 'und'))
+        try:
+            return Language(self.streams[index]['tags'].get('language', 'und'))
+        except KeyError:
+            return Language('und')
 
     def disposition(self, index) -> Disposition:
         return Disposition(self.streams[index].get('disposition', {}))

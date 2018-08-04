@@ -12,7 +12,7 @@ class OptionBuilder(object):
     """Builds a list of options suitable to pass to subprocess.Popen"""
     image_subtitle_codecs = ['hdmv_pgs_subtitle']
     bad_audio_codecs = ['truehd']
-    bad_codecs = ['truehd']
+    bad_codecs = ['truehd', 'mjpeg', 'png']
 
     def __init__(self, source_container: Container, target_container: Container):
         self.source_container = source_container

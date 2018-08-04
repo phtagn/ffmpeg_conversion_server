@@ -9,14 +9,15 @@ from converter.encoders import EncoderFactory, Encoders
 import logging
 from converter.ffmpeg import FFMpeg
 
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
-sh = logging.StreamHandler(sys.stdout)
-sh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(levelname)s - %(message)s')
-sh.setFormatter(formatter)
-log.addHandler(sh)
-# log = logging.getLogger(__name__)
+#log = logging.getLogger()
+#log.setLevel(logging.DEBUG)
+#sh = logging.StreamHandler(sys.stdout)
+#sh.setLevel(logging.DEBUG)
+#formatter = logging.Formatter('%(levelname)s - %(message)s')
+#sh.setFormatter(formatter)
+#log.addHandler(sh)
+
+log = logging.getLogger(__name__)
 
 """Processes a video file in steps:
 1) Analyse video file
@@ -168,8 +169,12 @@ class Processor(object):
 
         self.add_extra_audio_streams()
         self.ob.print_mapping(self.source_container, self.target_container, self.ob.mapping)
-        self.config.ffmpeg.generate_commands(self.source_container, self.target_container, self.ob.mapping,
-                                             self.config.encoder_factory)
+        self.config.ffmpeg.generate_commands(self.source_container,
+                                             self.target_container,
+                                             self.ob.mapping,
+                                             self.config.encoder_factory,
+                                             preopts=self.config.preopts,
+                                             postopts=self.config.postopts)
 
     def add_extra_audio_streams(self):
 
@@ -216,7 +221,7 @@ if __name__ == '__main__':
     import os
 
     laptop = os.path.abspath('/Users/Jon/Downloads/in/The.Polar.Express.(2004).1080p.BluRay.MULTI.x264-DiG8ALL.mkv')
-    desktop = os.path.abspath("/Users/Jon/Downloads/Geostorm 2017 1080p FR EN X264 AC3-mHDgz.mkv")
+    desktop = os.path.abspath("/Volumes/Downloads/sherlock/01 - Voici le Fameux Détective.mp4")
     cfgmgr = configuration.CfgMgr()
     cfgmgr.load('defaults.ini')
     p = Processor(cfgmgr.cfg, desktop, '/Users/jon/Downloads/toto.mp4', 'mp4')

@@ -131,7 +131,7 @@ class VideoProcessor(object):
         :return: None
         """
         self.processor.process()
-        self.output_file = self.processor.convert()
+        self.output_file = self.processor.process()
 
     def do_tag(self):
         _id = self.tagging_info.get('id', None)
