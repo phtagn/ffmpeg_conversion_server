@@ -2,7 +2,7 @@ import configuration
 import logging
 from transitions import Machine, State
 from processor import processor
-from fetchers.fetchers import FetchersFactory
+from fetchers.fetchers import FetchersFactory, FetcherException
 from taggers import tagger
 from helpers.helpers import breakdown
 from refreshers.refreshers import RefresherFactory
@@ -145,8 +145,11 @@ class VideoProcessor(object):
         else:
             fetcher = self.config['Tagging'].get('preferred_movie_tagger', 'tmdb')
 
-        ftch = FetchersFactory.getfetcher(fetcher, _id, id_type, language=language, season=season, episode=episode)
-        tags = ftch.gettags()
+        try:
+            ftch = FetchersFactory.getfetcher(fetcher, _id, id_type, language=language, season=season, episode=episode)
+            tags = ftch.gettags()
+        except FetcherException:
+            return None
 
         if tags.poster_url and self.config['Tagging'].get('download_artwork') is True:
             poster_file = ftch.downloadArtwork(tags.poster_url)
@@ -181,7 +184,7 @@ class VideoProcessor(object):
                 os.rename(self.output_file, os.path.join(self.work_dir, path_elements['file'] + '.' + self.target))
                 self.output_file = os.path.join(self.work_dir, path_elements['file'] + '.' + self.target)
             except FileNotFoundError:
-                pass
+                raise FileNotFoundError
 
     def do_copy(self):
         path_elements = breakdown(self.output_file)
@@ -225,6 +228,7 @@ class VideoProcessor(object):
 
 
 def build_machine(infile, target, config, tagging_info=None, notify=None):
+
     videoprocessor = VideoProcessor(infile, target, config, tagging_info=tagging_info, notify=notify)
     machine = Machine(model=videoprocessor, initial='initialised')
 

@@ -149,14 +149,14 @@ class FFMpeg(object):
             cmds = clean_cmds
         except:
             log.exception("There was an error making all command line parameters a string")
-        log.debug('Spawning ffmpeg with command: ' + ' '.join(cmds))
+
         return Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
                      close_fds=(os.name != 'nt'), startupinfo=None)
 
-    def probe(self, fname, posters_as_video=True) -> FFprobeParser:
+    def probe(self, fname) -> FFprobeParser:
         """
         Examine the media file and determine its format and media streams.
-        Returns the MediaInfo object, or None if the specified file is
+        Returns the Parser object, or None if the specified file is
         not a valid media file.
 
         >>> parsers = FFMpeg().probe('test1.ogg')
@@ -189,7 +189,7 @@ class FFMpeg(object):
 
         return parser
 
-    def generate_commands(self, source_container, target_container, mapping, encoder_factory, timeout=10, preopts=None,
+    def generate_commands(self, source_container, target_container, mapping, encoder_factory, preopts=None,
                           postopts=None):
         """
 
@@ -206,15 +206,11 @@ class FFMpeg(object):
         :param postopts:
         :return: list
         """
-        from helpers.helpers import breakdown
-        if os.name == 'nt':
-            timeout = 0
-
-        path_elements = breakdown(target_container.file_path)
 
         cmds = [self.ffmpeg_path,
                 '-i',
                 source_container.file_path]
+
         if preopts:
             cmds.extend(preopts)
 
@@ -238,13 +234,26 @@ class FFMpeg(object):
 
         cmds.extend(['-y', target_container.file_path])
 
-        log.debug(' '.join(cmds))
+        return cmds
 
-        p = Popen(cmds, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE,
-                  close_fds=(os.name != 'nt'), startupinfo=None)
+    def convert2(self, cmds: list, timeout=10):
+        if timeout:
+            def on_sigalrm(*_):
+                signal.signal(signal.SIGALRM, signal.SIG_DFL)
+                raise Exception('timed out while waiting for ffmpeg')
+
+            signal.signal(signal.SIGALRM, on_sigalrm)
+
+        try:
+            p = self._spawn(cmds)
+        except OSError:
+            raise FFMpegError('Error while calling ffmpeg binary')
+
+        yielded = False
         buf = ''
         total_output = ''
         pat = re.compile(r'time=([0-9.:]+) ')
+
         while True:
             if timeout:
                 signal.alarm(timeout)
@@ -255,6 +264,10 @@ class FFMpeg(object):
                 signal.alarm(0)
 
             if not ret:
+                # For small or very fast jobs, ffmpeg may never output a '\r'.  When EOF is reached, yield if we haven't yet.
+                if not yielded:
+                    yielded = True
+                    yield 10
                 break
 
             try:
@@ -279,7 +292,37 @@ class FFMpeg(object):
                             timecode = 60 * timecode + float(part)
                     else:
                         timecode = float(tmp[0])
-                    print(timecode)
+                    yielded = True
+                    yield timecode
+
+        if timeout:
+            signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+        p.communicate()  # wait for process to exit
+
+        if total_output == '':
+            raise FFMpegError('Error while calling ffmpeg binary')
+
+        cmd = ' '.join(cmds)
+        if '\n' in total_output:
+            line = total_output.split('\n')[-2]
+
+            if line.startswith('Received signal'):
+                # Received signal 15: terminating.
+                raise FFMpegConvertError(line.split(':')[0], cmd, total_output, pid=p.pid)
+            # if line.startswith(cmds[2] + ': '):
+            #    err = line[len(cmds[2]) + 2:]
+            #    raise FFMpegConvertError('Encoding error', cmd, total_output,
+            #                             err, pid=p.pid)
+            if line.startswith('Error while '):
+                raise FFMpegConvertError('Encoding error', cmd, total_output,
+                                         line, pid=p.pid)
+            if not yielded:
+                raise FFMpegConvertError('Unknown ffmpeg error', cmd,
+                                         total_output, line, pid=p.pid)
+        if p.returncode != 0:
+            raise FFMpegConvertError('Exited with code %d' % p.returncode, cmd,
+                                     total_output, pid=p.pid)
 
     def convert(self, infile, outfile, opts, timeout=10, preopts=None, postopts=None):
         """

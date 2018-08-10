@@ -320,7 +320,7 @@ RUN apk del \
 
 RUN pip3 install --upgrade pip
 
-ENV        FLASK_ENV='development'
+#ENV        FLASK_ENV='development'
 
 WORKDIR /conversion-server
 EXPOSE 5000

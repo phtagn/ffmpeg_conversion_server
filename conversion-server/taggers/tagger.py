@@ -6,8 +6,10 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
 class TagError(Exception):
     pass
+
 
 class ITagger(object):
     __metaclass__ = abc.ABCMeta
@@ -15,6 +17,7 @@ class ITagger(object):
     @abc.abstractmethod
     def write(self):
         pass
+
 
 class TaggerFactory(object):
     Taggers = {}
@@ -35,35 +38,34 @@ class MP4Tagger(ITagger):
     supported_containers = ['mp4']
     name = 'mp4'
 
-    tagtable = {
-                'description': 'desc',
-                'long_description': 'ldes',
-                'genre': '\xa9gen',
-                'title': '\xa9nam',
-                'show': 'tvsh',
-                'episode_title': 'tven',
-                'network': 'tvnn',
-                'season_number': 'tvsn',
-                'season_total': 'disk',
-                'episode_number': 'tves',
-                'track_number': 'trkn',
-                'album': '\xa9alb',
-                'itunes_video_category': 'stik',
-                'resolution': 'hdvd'}
+    tag_table = {
+        'description': 'desc',
+        'long_description': 'ldes',
+        'genre': '\xa9gen',
+        'title': '\xa9nam',
+        'show': 'tvsh',
+        'episode_title': 'tven',
+        'network': 'tvnn',
+        'season_number': 'tvsn',
+        'season_total': 'disk',
+        'episode_number': 'tves',
+        'track_number': 'trkn',
+        'album': '\xa9alb',
+        'itunes_video_category': 'stik',
+        'resolution': 'hdvd'}
 
-
-    def __init__(self, tags, mp4Path, dimensions={}, artworkfile=None):
-        self.mp4Path = mp4Path
+    def __init__(self, tags, mp4_path, dimensions={}, artwork_file=None):
+        self.mp4_path = mp4_path
         self.tags = tags
-        self.artworkfile = artworkfile
+        self.artwork_file = artwork_file
         self.dimensions = dimensions
 
-        if os.path.isfile(mp4Path):
-            self.video = MP4(self.mp4Path)
+        if os.path.isfile(mp4_path):
+            self.video = MP4(self.mp4_path)
         else:
-            log.error('Path %s is not valid', mp4Path)
+            log.error('Path %s is not valid', mp4_path)
 
-        ext = os.path.splitext(self.mp4Path)[1][1:]
+        ext = os.path.splitext(self.mp4_path)[1][1:]
         if ext.lower() not in ['mp4', 'm4v', 'mov']:
             raise TaggerException('MP4Tagger only tags mp4, the file extention is %s', ext)
 
@@ -91,21 +93,20 @@ class MP4Tagger(ITagger):
         self.video["----:com.apple.iTunes:iTunMOVI"] = self.xmlTags()  # XML - see xmlTags method
         # self.video["----:com.apple.iTunes:iTunEXTC"] = self.setRating()  # iTunes content rating
 
-        if self.artworkfile:
-            cover = open(self.artworkfile, 'rb').read()
-            if self.artworkfile.endswith('png'):
+        if self.artwork_file:
+            cover = open(self.artwork_file, 'rb').read()
+            if self.artwork_file.endswith('png'):
                 self.video["covr"] = [MP4Cover(cover, MP4Cover.FORMAT_PNG)]  # png poster
             else:
                 self.video["covr"] = [MP4Cover(cover, MP4Cover.FORMAT_JPEG)]  # jpeg poster
 
-        MP4(self.mp4Path).delete(self.mp4Path)
+        MP4(self.mp4_path).delete(self.mp4_path)
         self.video.save()
-
 
     def settag(self, tag, tagdata=None) -> None:
 
-        if tag in MP4Tagger.tagtable and tagdata:
-            mp4tag = MP4Tagger.tagtable[tag]
+        if tag in MP4Tagger.tag_table and tagdata:
+            mp4tag = MP4Tagger.tag_table[tag]
             self.video[mp4tag] = tagdata
         else:
             log.debug('Tag %s was not written because data %s was missing', tag, tagdata)
@@ -150,7 +151,6 @@ class MP4Tagger(ITagger):
                     b"<dict><key>name</key><string>%s</string></dict>\n" % tag)
             output.write(subfooter)
 
-
         # Write directors
         if self.tags.directors:
             output.write(directorheader)
@@ -165,10 +165,9 @@ class MP4Tagger(ITagger):
         output.write(footer)
         return output.getvalue()
 
+
 TaggerFactory.register(MP4Tagger)
+
 
 class TaggerException(Exception):
     pass
-
-
-

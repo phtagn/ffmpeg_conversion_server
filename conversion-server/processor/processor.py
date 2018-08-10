@@ -7,7 +7,7 @@ import os
 import sys
 from converter.encoders import EncoderFactory, Encoders
 import logging
-from converter.ffmpeg import FFMpeg
+from converter.ffmpeg import FFMpeg, FFMpegError, FFMpegConvertError
 
 #log = logging.getLogger()
 #log.setLevel(logging.DEBUG)
@@ -169,12 +169,21 @@ class Processor(object):
 
         self.add_extra_audio_streams()
         self.ob.print_mapping(self.source_container, self.target_container, self.ob.mapping)
-        self.config.ffmpeg.generate_commands(self.source_container,
+        commandline = self.config.ffmpeg.generate_commands(self.source_container,
                                              self.target_container,
                                              self.ob.mapping,
                                              self.config.encoder_factory,
                                              preopts=self.config.preopts,
                                              postopts=self.config.postopts)
+
+        log.debug('FFmpeg command:\n %s', ' '.join(commandline))
+
+        try:
+            self.config.ffmpeg.convert2(commandline)
+            return self.target_container.file_path
+        except (FFMpegError, FFMpegConvertError):
+            return None
+
 
     def add_extra_audio_streams(self):
 

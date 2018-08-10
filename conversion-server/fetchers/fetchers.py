@@ -3,7 +3,6 @@ import logging
 import requests
 import tmdbsimple as tmdb
 from tvdb_api import Tvdb
-import typing
 import tempfile
 import os
 
@@ -121,6 +120,7 @@ class FetcherTmdb(IFetcher):
     def fetcherid(self):
         return self._fetcherid
 
+    @abstractmethod
     def gettags(self):
         pass
 
@@ -161,11 +161,10 @@ class FetcherTmdbTV(FetcherTmdb):
             fetcher = tmdb.TV_Seasons(self.fetcherid, season)
             showdata = tmdb.TV(self.fetcherid).info(language=self.language)
             episodedata = tmdb.TV_Episodes(self.fetcherid, season, episode).info(language=self.language)
-        except:
-            pass
+        except Exception:
+            raise FetcherException
 
         if showdata:
-
             # Show parsers
             tags.season_total = showdata['number_of_seasons']
             tags.show = showdata['name']
@@ -193,6 +192,8 @@ class FetcherTmdbTV(FetcherTmdb):
                     tags.writers.append(member['name'])
 
             return tags
+        else:
+            raise FetcherException
 
 
 class FetcherTmdbMovie(FetcherTmdb):
@@ -280,12 +281,12 @@ class FetcherTvdb(IFetcher):
         season = self.season
         episode = self.episode
 
-        showdata = self.fetcher[self.fetcherid]
+        show_data = self.fetcher[self.fetcherid]
         tags = Tags()
 
-        data = showdata.data
-        seasondata = showdata[season]
-        episodedata = seasondata[episode]
+        data = show_data.data
+        season_data = show_data[season]
+        episode_data = season_data[episode]
 
         tags.show = data['seriesName']
 
@@ -297,23 +298,22 @@ class FetcherTvdb(IFetcher):
         if data['rating']:
             tags.rating = data['rating']
 
-        tags.seasons = len(seasondata)
+        tags.seasons = len(season_data)
         tags.season_number = season
 
-        tags.long_description = episodedata['overview']
+        tags.long_description = episode_data['overview']
 
         tags.episode_number = episode
-        tags.title = episodedata['episodeName']
+        tags.title = episode_data['episodeName']
 
-        bannerdata = data['_banners']['season']['']
-        for k in bannerdata:
-            if bannerdata[k]['subKey'] == str(season) and bannerdata[k]['_bannerpath']:
-                tags.poster_url = bannerdata[k]['_bannerpath']
+        banner_data = data['_banners']['season']['']
+        for k in banner_data:
+            if banner_data[k]['subKey'] == str(season) and banner_data[k]['_bannerpath']:
+                tags.poster_url = banner_data[k]['_bannerpath']
                 break
 
-
-        if episodedata['writer']:
-            for name in episodedata['writer']:
+        if episode_data['writer']:
+            for name in episode_data['writer']:
                 if name != "":
                     tags.writers.append(name)
 
@@ -365,6 +365,3 @@ class posterCollection:
 
     def addPoster(self, inputPoster):
         self.posters.append(inputPoster)
-
-
-
